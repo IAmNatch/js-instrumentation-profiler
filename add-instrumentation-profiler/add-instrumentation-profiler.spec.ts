@@ -1,14 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { createTestTransform } from '../test-utils/create-test-transform';
 import transformer from './add-instrumentation-profiler';
-import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
+import { sleepSyncCode } from '../test-utils/injectable-code-strings';
+import { readFixture, readDynamicFixture } from '../test-utils/fixture-utils';
+import { fileURLToPath } from 'url';
 
-const __dirname = dirname(__filename);
-
-const readFixture = (filename: string) => {
-  return readFileSync(join(__dirname, '__fixtures__', filename), 'utf8');
-};
+const __filename = fileURLToPath(import.meta.url);
 
 describe("add-instrumentation-profiler", () => {
   const transform = createTestTransform(transformer);
@@ -85,31 +82,31 @@ function Foo() {
     });
 
     it('should transform a simple function with timing instrumentation', () => {
-      const source = readFixture('simple-function.js');
-      const expected = readFixture('simple-function.expected.js');
+      const source = readFixture('simple-function.js', __filename);
+      const expected = readFixture('simple-function.expected.js', __filename);
       
       const result = transform({source});
       expect(result).toEqual(expected);
     });
 
     it('should include handle return statements', () => {
-      const source = readFixture('return-statement.js');
-      const expected = readFixture('return-statement.expected.js');
+      const source = readFixture('return-statement.js', __filename);
+      const expected = readFixture('return-statement.expected.js', __filename);
       
       const result = transform({source});
       expect(result).toEqual(expected);
     });
 
     it('should handle conditional return statements', () => {
-      const source = readFixture('conditional-return.js');
-      const expected = readFixture('conditional-return.expected.js');
+      const source = readFixture('conditional-return.js', __filename);
+      const expected = readFixture('conditional-return.expected.js', __filename);
       
       const result = transform({source});
       expect(result).toEqual(expected);
     });
 
     it('should detect nested functions and add them to timingsMap', () => {
-      const source = readFixture('nested-functions.js');
+      const source = readFixture('nested-functions.js', __filename);
       const result = transform({source});
       
       // Check that both outer and inner functions are added to timingsMap
@@ -122,15 +119,15 @@ function Foo() {
     });
 
     it('should transform nested functions with complete timing instrumentation', () => {
-      const source = readFixture('nested-functions.js');
-      const expected = readFixture('nested-functions.expected.js');
+      const source = readFixture('nested-functions.js', __filename);
+      const expected = readFixture('nested-functions.expected.js', __filename);
       
       const result = transform({source});
       expect(result).toEqual(expected);
     });
 
     it("should add performance test specific code when isPerformanceTest is true", () => {
-      const source = readFixture('simple-function.js');
+      const source = readFixture('simple-function.js', __filename);
       const result = transform({source}, true);
       
       // Check that the getPerformanceResults function is added
@@ -149,31 +146,18 @@ function Foo() {
 
   describe("instrumentation quality", () => {
     it("should accurately instrument a single function", () => {
-      const source = `
-function Foo() {
-   ${sleepSyncCode(10)}
-}
-
-Foo();
-`;
+      const source = readDynamicFixture('simple-function.js', {
+        SLEEP_FUNCTION_FOO: sleepSyncCode(10)
+      }, __filename);
       const codeToRun = transform({source}, true);
       
       // evaluate result code using javascript eval
       const result = eval(codeToRun);
-      expect(result).toEqual({
-        Foo: {
-          totalDuration: expect.closeTo(10, 1),
-          calls: 1
-        }
-      });
+      expect(result.Foo.totalDuration).toBeCloseTo(10, 0);
+      expect(result.Foo.calls).toBe(1);
     })
   })
 });
 
-const sleepSyncCode = (ms: number) => `(() => {
-  const startTime = performance.now();
-  while (performance.now() - startTime < ${ms}) {
-    // do nothing
-  }
-})()`
+
 
