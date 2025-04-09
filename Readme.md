@@ -175,6 +175,7 @@ To make tests more maintainable and readable, we use a fixtures-based approach:
 
    - Input files: `*.js` (e.g., `simple-function.js`)
    - Expected output files: `*.expected.js` (e.g., `simple-function.expected.js`)
+   - Dynamic fixtures: Files with placeholders that can be replaced at runtime
 
 2. **Benefits**:
 
@@ -193,7 +194,34 @@ To make tests more maintainable and readable, we use a fixtures-based approach:
    expect(result).toEqual(expected);
    ```
 
-4. **Maintenance**:
+4. **Dynamic Fixtures**:
+
+   For tests that need to inject dynamic code (like performance testing), we use comment-based placeholders:
+
+   ```javascript
+   // Example dynamic fixture file
+   function Foo() {
+     // @INJECT: SLEEP_FUNCTION_FOO
+   }
+
+   Foo();
+   ```
+
+   These placeholders are replaced at runtime using the `readDynamicFixture` function:
+
+   ```typescript
+   const source = readDynamicFixture(
+     "simple-function.js",
+     {
+       SLEEP_FUNCTION_FOO: sleepSyncCode(10),
+     },
+     __filename
+   );
+   ```
+
+   This approach avoids linting errors while still allowing for dynamic code injection.
+
+5. **Maintenance**:
    - Fixture files should be kept clean (no trailing whitespace)
    - When adding new test cases, create corresponding fixture files
    - Use the `sed` command to clean whitespace if needed:

@@ -1,5 +1,5 @@
 function Foo() {
-   ${SLEEP_FUNCTION_FOO}
+   // @INJECT: SLEEP_FUNCTION_FOO
 }
 
 Foo(); 

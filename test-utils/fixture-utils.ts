@@ -27,7 +27,8 @@ export const readDynamicFixture = (
   const __dirname = dirname(testFilePath);
   let content = readFileSync(join(__dirname, '__fixtures__', 'dynamic', filename), 'utf8');
   for (const [key, value] of Object.entries(replacements)) {
-    content = content.replace(new RegExp(`\\$\\{${key}\\}`, 'g'), value);
+    // Replace comment-based placeholders (// @INJECT: KEY)
+    content = content.replace(new RegExp(`//\\s*@INJECT:\\s*${key}`, 'g'), value);
   }
   return content;
 }; 
