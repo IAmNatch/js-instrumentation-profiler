@@ -7,7 +7,7 @@ It works by adding timings to all function calls and method calls.
 ### Installation
 
 ```bash
-npm install jscodeshift-add-instrumentation-profiling
+npm install js-instrumentation-profiler
 ```
 
 ### Basic Usage
@@ -15,7 +15,7 @@ npm install jscodeshift-add-instrumentation-profiling
 To transform a JavaScript file with instrumentation profiling:
 
 ```bash
-npx jscodeshift -t node_modules/jscodeshift-add-instrumentation-profiling/add-instrumentation-profiler.js your-file.js
+npx jscodeshift -t node_modules/js-instrumentation-profiler/js-instrumentation-profiler.js your-file.js
 ```
 
 > **Note:** Currently, this codemod only works with single file libraries. Multi-file projects are not supported.
@@ -29,7 +29,7 @@ The codemod accepts the following options:
 Example with performance testing enabled:
 
 ```bash
-npx jscodeshift -t node_modules/jscodeshift-add-instrumentation-profiling/add-instrumentation-profiler.js --isPerformanceTest=true your-file.js
+npx jscodeshift -t node_modules/js-instrumentation-profiler/js-instrumentation-profiler.js --isPerformanceTest=true your-file.js
 ```
 
 ### What Gets Instrumented
@@ -288,7 +288,7 @@ To make tests more maintainable and readable, we use a fixtures-based approach:
    - When adding new test cases, create corresponding fixture files
    - Use the `sed` command to clean whitespace if needed:
      ```bash
-     find add-instrumentation-profiler/__fixtures__ -type f -name "*.js" -exec sed -i '' 's/[[:space:]]*$//' {} \;
+     find js-instrumentation-profiler/__fixtures__ -type f -name "*.js" -exec sed -i '' 's/[[:space:]]*$//' {} \;
      ```
 
 ## Implementation Todo List

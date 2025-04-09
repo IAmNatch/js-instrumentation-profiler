@@ -1,5 +1,5 @@
 {
-  "name": "jscodeshift-add-instrumentation-profiling",
+  "name": "js-instrumentation-profiler",
   "version": "1.0.0",
   "description": "It works by adding timings to all function calls and method calls.",
   "type": "module",

@@ -1,13 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { createTestTransform } from "../test-utils/create-test-transform";
-import transformer from "./add-instrumentation-profiler";
+import transformer from "./js-instrumentation-profiler";
 import { sleepSyncCode } from "../test-utils/injectable-code-strings";
 import { readFixture, readDynamicFixture } from "../test-utils/fixture-utils";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 
-describe("add-instrumentation-profiler", () => {
+describe("js-instrumentation-profiler", () => {
   const transform = createTestTransform(transformer);
 
   describe("transformation", () => {
