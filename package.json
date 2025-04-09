@@ -4,11 +4,13 @@
   "description": "It works by adding timings to all function calls and method calls.",
   "main": "index.js",
   "scripts": {
-    "test": "vitest",
+    "test": "vitest --run",
+    "test:watch": "vitest",
     "test:coverage": "vitest --coverage"
   },
   "dependencies": {
-    "jscodeshift": "^17.3.0"
+    "jscodeshift": "^17.3.0",
+    "jscodeshift-helper": "^1.1.0"
   },
   "devDependencies": {
     "@types/jscodeshift": "17.3.0",
