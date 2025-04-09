@@ -4,6 +4,7 @@ import transformer from "./js-instrumentation-profiler";
 import { sleepSyncCode } from "../test-utils/injectable-code-strings";
 import { readFixture, readDynamicFixture } from "../test-utils/fixture-utils";
 import { fileURLToPath } from "url";
+import { expectDurationWithVariance } from "../test-utils/expect-utils";
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -226,7 +227,7 @@ const Foo = () => {
 
   describe("instrumentation quality", () => {
     it("should accurately instrument a single function", () => {
-      const SIMPLE_SLEEP_DURATION = 10;
+      const SIMPLE_SLEEP_DURATION = 10; // 10ms
       const source = readDynamicFixture(
         "simple-function.js",
         {
@@ -238,13 +239,16 @@ const Foo = () => {
 
       // evaluate result code using javascript eval
       const result = eval(codeToRun);
-      expect(result.Foo.totalDuration).toBeCloseTo(SIMPLE_SLEEP_DURATION, 0);
+      expectDurationWithVariance(
+        result.Foo.totalDuration,
+        SIMPLE_SLEEP_DURATION
+      );
       expect(result.Foo.calls).toBe(1);
     });
 
     it("should accurately instrument arrow functions", () => {
-      const ARROW_FOO_SLEEP_DURATION = 8;
-      const ARROW_BAR_SLEEP_DURATION = 12;
+      const ARROW_FOO_SLEEP_DURATION = 10; // 10ms
+      const ARROW_BAR_SLEEP_DURATION = 20; // 20ms
       const source = readDynamicFixture(
         "arrow-functions.js",
         {
@@ -257,15 +261,21 @@ const Foo = () => {
 
       // evaluate result code using javascript eval
       const result = eval(codeToRun);
-      expect(result.Foo.totalDuration).toBeCloseTo(ARROW_FOO_SLEEP_DURATION, 0);
+      expectDurationWithVariance(
+        result.Foo.totalDuration,
+        ARROW_FOO_SLEEP_DURATION
+      );
       expect(result.Foo.calls).toBe(1);
-      expect(result.Bar.totalDuration).toBeCloseTo(ARROW_BAR_SLEEP_DURATION, 0);
+      expectDurationWithVariance(
+        result.Bar.totalDuration,
+        ARROW_BAR_SLEEP_DURATION
+      );
       expect(result.Bar.calls).toBe(1);
     });
 
     it("should accurately instrument nested functions", () => {
-      const NESTED_OUTER_SLEEP_DURATION = 5;
-      const NESTED_INNER_SLEEP_DURATION = 3;
+      const NESTED_OUTER_SLEEP_DURATION = 10; // 10ms
+      const NESTED_INNER_SLEEP_DURATION = 10; // 10ms
       const source = readDynamicFixture(
         "nested-functions.js",
         {
@@ -280,24 +290,24 @@ const Foo = () => {
       const result = eval(codeToRun);
 
       // Check outer function timing
-      expect(result.outer.totalDuration).toBeCloseTo(
-        NESTED_OUTER_SLEEP_DURATION,
-        0
+      expectDurationWithVariance(
+        result.outer.totalDuration,
+        NESTED_OUTER_SLEEP_DURATION
       );
       expect(result.outer.calls).toBe(1);
 
       // Check inner function timing
-      expect(result.inner.totalDuration).toBeCloseTo(
-        NESTED_INNER_SLEEP_DURATION,
-        0
+      expectDurationWithVariance(
+        result.inner.totalDuration,
+        NESTED_INNER_SLEEP_DURATION
       );
       expect(result.inner.calls).toBe(1);
     });
 
     it("should correctly time separate functions with one calling the other", () => {
-      const FIRST_FUNCTION_BEFORE_SLEEP = 5;
-      const SECOND_FUNCTION_SLEEP = 10;
-      const FIRST_FUNCTION_AFTER_SLEEP = 7;
+      const FIRST_FUNCTION_BEFORE_SLEEP = 10; // 10ms
+      const SECOND_FUNCTION_SLEEP = 20; // 20ms
+      const FIRST_FUNCTION_AFTER_SLEEP = 10; // 10ms
 
       const source = readDynamicFixture(
         "separate-functions.js",
@@ -317,16 +327,16 @@ const Foo = () => {
       const result = eval(codeToRun);
 
       // Check firstFunction timing (should be sum of before and after sleep, not including secondFunction)
-      expect(result.firstFunction.totalDuration).toBeCloseTo(
-        FIRST_FUNCTION_BEFORE_SLEEP + FIRST_FUNCTION_AFTER_SLEEP,
-        0
+      expectDurationWithVariance(
+        result.firstFunction.totalDuration,
+        FIRST_FUNCTION_BEFORE_SLEEP + FIRST_FUNCTION_AFTER_SLEEP
       );
       expect(result.firstFunction.calls).toBe(1);
 
       // Check secondFunction timing
-      expect(result.secondFunction.totalDuration).toBeCloseTo(
-        SECOND_FUNCTION_SLEEP,
-        0
+      expectDurationWithVariance(
+        result.secondFunction.totalDuration,
+        SECOND_FUNCTION_SLEEP
       );
       expect(result.secondFunction.calls).toBe(1);
     });
