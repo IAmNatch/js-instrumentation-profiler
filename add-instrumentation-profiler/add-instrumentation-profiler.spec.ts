@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { createTestTransform } from '../test-utils/create-test-transform';
 import transformer from './add-instrumentation-profiler';
 
-describe("add-instrumentation-profiler transform", () => {
+describe("add-instrumentation-profiler", () => {
   const transform = createTestTransform(transformer);
 
   describe("transformation", () => {
@@ -111,7 +111,6 @@ function Foo() {
 Foo();`;
       
       const result = transform({source});
-      console.log(result);
       expect(result).toEqual(expected);
     });
 
@@ -327,9 +326,34 @@ function outer() {
 }`;
       
       // Compare the result with the expected result
-      console.log('Actual result:', result);
       expect(result).toEqual(expectedResult);
     });
   });
+
+  describe("instrumentation quality", () => {
+    it("should accurately instrument a single function", () => {
+      const source = `
+function Foo() {
+   ${sleepSyncCode(100)}
+   return 11;
+}
+
+Foo();
+`;
+      const codeToRun = transform({source});
+      
+      // evaluate result code using javascript eval
+      const result = eval(codeToRun);
+      console.log(result);
+      expect(result).toEqual(11);
+    })
+  })
 });
+
+const sleepSyncCode = (ms: number) => `(() => {
+  const startTime = performance.now();
+  while (performance.now() - startTime < ${ms}) {
+    // do nothing
+  }
+})()`
 
