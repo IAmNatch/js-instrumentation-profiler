@@ -328,24 +328,51 @@ function outer() {
       // Compare the result with the expected result
       expect(result).toEqual(expectedResult);
     });
+
+    it("should add performance test specific code when isPerformanceTest is true", () => {
+      const source = `
+function Foo() {
+  console.log("Foo is running");
+  return 42;
+}
+
+Foo();
+`;
+      const result = transform({source}, true);
+      
+      // Check that the getPerformanceResults function is added
+      expect(result).toContain('function getPerformanceResults()');
+      
+      // Check that the getPerformanceResults function is called at the end
+      expect(result).toContain('getPerformanceResults()');
+      
+      // Check that the function returns an object with the function names as keys
+      expect(result).toContain('{\n    Foo: timingsMap.get("Foo")\n  }');
+      // Ensure getPerformanceResults() is the last line in the transformed code
+      const lastLine = result.split('\n').filter(line => line.trim()).pop();
+      expect(lastLine).toBe('getPerformanceResults();');
+    });
   });
 
   describe("instrumentation quality", () => {
     it("should accurately instrument a single function", () => {
       const source = `
 function Foo() {
-   ${sleepSyncCode(100)}
-   return 11;
+   ${sleepSyncCode(10)}
 }
 
 Foo();
 `;
-      const codeToRun = transform({source});
+      const codeToRun = transform({source}, true);
       
       // evaluate result code using javascript eval
       const result = eval(codeToRun);
-      console.log(result);
-      expect(result).toEqual(11);
+      expect(result).toEqual({
+        Foo: {
+          totalDuration: expect.closeTo(10, 1),
+          calls: 1
+        }
+      });
     })
   })
 });

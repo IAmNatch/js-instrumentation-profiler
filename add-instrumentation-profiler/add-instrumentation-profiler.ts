@@ -3,9 +3,10 @@ import { Collection } from 'jscodeshift';
 import { Node, ReturnStatement, FunctionDeclaration, FunctionExpression, ArrowFunctionExpression, CallExpression, ExpressionStatement, VariableDeclaration, Identifier } from 'jscodeshift';
 import { ASTPath } from 'jscodeshift';
 
-export default function transformer(file: FileInfo, api: API) {
+export default function transformer(file: FileInfo, api: API, options: { isPerformanceTest?: boolean } = {}) {
   const j = api.jscodeshift;
   const root = j(file.source);
+  const isPerformanceTest = options.isPerformanceTest || false;
   
   // Find all function declarations
   const functionDeclarations = root.find(j.FunctionDeclaration);
@@ -295,6 +296,43 @@ export default function transformer(file: FileInfo, api: API) {
   
   // Insert the timingsMap initialization at the beginning of the file
   root.get().node.program.body.unshift(timingsMapInit, ...timingsMapEntries);
+  
+  // Add performance test specific code if isPerformanceTest is true
+  if (isPerformanceTest) {
+    // Create a function to get performance results
+    const getPerformanceResults = j.functionDeclaration(
+      j.identifier('getPerformanceResults'),
+      [],
+      j.blockStatement([
+        j.returnStatement(
+          j.objectExpression(
+            functionNames.map(name => 
+              j.objectProperty(
+                j.identifier(name),
+                j.callExpression(
+                  j.memberExpression(j.identifier('timingsMap'), j.identifier('get')),
+                  [j.stringLiteral(name)]
+                )
+              )
+            )
+          )
+        )
+      ])
+    );
+    
+    // Add the getPerformanceResults function to the program body
+    root.get().node.program.body.push(getPerformanceResults);
+    
+    // Add a call to getPerformanceResults at the end of the file
+    root.get().node.program.body.push(
+      j.expressionStatement(
+        j.callExpression(
+          j.identifier('getPerformanceResults'),
+          []
+        )
+      )
+    );
+  }
   
   // Get result string
   const result = root.toSource();

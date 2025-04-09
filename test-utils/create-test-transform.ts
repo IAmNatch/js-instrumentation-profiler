@@ -8,5 +8,10 @@ import { applyTransform, type TestOptions } from 'jscodeshift/src/testUtils';
 export function createTestTransform(transformer: Transform) {
   const options: Options = {};
   const testOptions: TestOptions = { parser: 'ts' };
-  return (input: { path?: string; source: string; }) => applyTransform(transformer, options, input, testOptions);
+  return (input: { path?: string; source: string; }, isPerformanceTest?: boolean) => {
+    if (isPerformanceTest !== undefined) {
+      options.isPerformanceTest = isPerformanceTest;
+    }
+    return applyTransform(transformer, options, input, testOptions);
+  };
 }
