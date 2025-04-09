@@ -136,7 +136,6 @@ Foo();
   - [x] Add duration calculation and storage
   - [x] Add instrumentation comments for clarity
   - [x] Verify basic instrumentation works
-  - [ ] Verify we support calling multiple functions
 - [x] Handle function return statements
   - [x] Add test for functions with return statements
   - [x] Ensure timing code works with returns
@@ -144,13 +143,13 @@ Foo();
 
 ### Phase 3: Nested Function Handling
 
-- [ ] Implement nested function detection
-  - [ ] Add test for nested function scenarios
-  - [ ] Create function scope tracking
-  - [ ] Verify nested function detection works
-- [ ] Add nested function instrumentation
-  - [ ] Add test for nested function timing
-  - [ ] Implement separate timing for nested functions
+- [x] Implement nested function detection
+  - [x] Add test for nested function scenarios
+  - [x] Create function scope tracking
+  - [x] Verify nested function detection works
+- [x] Add nested function instrumentation
+  - [x] Add test for nested function timing
+  - [x] Implement separate timing for nested functions
   - [ ] Verify nested function timing works
 - [ ] Handle function calls within functions
   - [ ] Add test for internal function calls
