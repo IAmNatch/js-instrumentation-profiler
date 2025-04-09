@@ -1,24 +1,12 @@
 import type { API, FileInfo } from "jscodeshift";
-import { Collection } from "jscodeshift";
-import {
-  Node,
-  ReturnStatement,
-  FunctionDeclaration,
-  FunctionExpression,
-  ArrowFunctionExpression,
-  CallExpression,
-  ExpressionStatement,
-  VariableDeclaration,
-  Identifier,
-  VariableDeclarator,
-} from "jscodeshift";
+import type { Node } from "jscodeshift";
 import { ASTPath } from "jscodeshift";
 
 export default function transformer(
   file: FileInfo,
   api: API,
   options: { isPerformanceTest?: boolean } = {}
-) {
+): string {
   const j = api.jscodeshift;
   const root = j(file.source);
   const isPerformanceTest = options.isPerformanceTest || false;
@@ -168,46 +156,6 @@ export default function transformer(
               j.identifier("totalDuration")
             ),
             j.identifier("localDuration")
-          )
-        ),
-        j.expressionStatement(j.literal("/* --end-instrumentation-- */")),
-      ];
-
-      // Create timing code for inner function calls
-      const innerCallTimingCode = [
-        j.expressionStatement(j.literal("/* --instrumentation-- */")),
-        // Calculate local duration
-        j.expressionStatement(
-          j.assignmentExpression(
-            "+=",
-            j.identifier("localDuration"),
-            j.binaryExpression(
-              "-",
-              j.callExpression(
-                j.memberExpression(
-                  j.identifier("performance"),
-                  j.identifier("now")
-                ),
-                []
-              ),
-              j.identifier("startTime")
-            )
-          )
-        ),
-        j.expressionStatement(j.literal("/* --end-instrumentation-- */")),
-        j.expressionStatement(j.literal("/* --instrumentation-- */")),
-        // Reset start time
-        j.expressionStatement(
-          j.assignmentExpression(
-            "=",
-            j.identifier("startTime"),
-            j.callExpression(
-              j.memberExpression(
-                j.identifier("performance"),
-                j.identifier("now")
-              ),
-              []
-            )
           )
         ),
         j.expressionStatement(j.literal("/* --end-instrumentation-- */")),
@@ -363,8 +311,8 @@ export default function transformer(
         declaration.init &&
         j.ArrowFunctionExpression.check(declaration.init)
       ) {
-        const functionName = declaration.id.name as string;
-        const arrowFunction = declaration.init as any;
+        const functionName = declaration.id.name;
+        const arrowFunction = declaration.init;
 
         // Create the timing code
         const timingCode = [
@@ -445,46 +393,6 @@ export default function transformer(
                 j.identifier("totalDuration")
               ),
               j.identifier("localDuration")
-            )
-          ),
-          j.expressionStatement(j.literal("/* --end-instrumentation-- */")),
-        ];
-
-        // Create timing code for inner function calls
-        const innerCallTimingCode = [
-          j.expressionStatement(j.literal("/* --instrumentation-- */")),
-          // Calculate local duration
-          j.expressionStatement(
-            j.assignmentExpression(
-              "+=",
-              j.identifier("localDuration"),
-              j.binaryExpression(
-                "-",
-                j.callExpression(
-                  j.memberExpression(
-                    j.identifier("performance"),
-                    j.identifier("now")
-                  ),
-                  []
-                ),
-                j.identifier("startTime")
-              )
-            )
-          ),
-          j.expressionStatement(j.literal("/* --end-instrumentation-- */")),
-          j.expressionStatement(j.literal("/* --instrumentation-- */")),
-          // Reset start time
-          j.expressionStatement(
-            j.assignmentExpression(
-              "=",
-              j.identifier("startTime"),
-              j.callExpression(
-                j.memberExpression(
-                  j.identifier("performance"),
-                  j.identifier("now")
-                ),
-                []
-              )
             )
           ),
           j.expressionStatement(j.literal("/* --end-instrumentation-- */")),

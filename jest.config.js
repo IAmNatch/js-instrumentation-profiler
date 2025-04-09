@@ -1,5 +1,5 @@
 /** @type {import('jest').Config} */
-module.exports = {
+export default {
     automock: false,
     transform: {
       "\\.ts$": ['ts-jest', { isolatedModules: true }],
