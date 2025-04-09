@@ -46,8 +46,13 @@ export default function transformer(file: FileInfo, api: API) {
     if (path.node.id) {
       const functionName = path.node.id.name as string;
       
+      
+      
       // Create the timing code
       const timingCode = [
+        j.expressionStatement(
+            j.literal("/* --instrumentation-- */")
+        ),
         // Increment call counter
         j.expressionStatement(
           j.assignmentExpression(
@@ -74,11 +79,17 @@ export default function transformer(file: FileInfo, api: API) {
         // Initialize local duration
         j.variableDeclaration('let', [
           j.variableDeclarator(j.identifier('localDuration'), j.numericLiteral(0))
-        ])
+        ]),
+        j.expressionStatement(
+            j.literal("/* --end-instrumentation-- */")
+        )
       ];
       
       // Create the end timing code
       const endTimingCode = [
+        j.expressionStatement(
+            j.literal("/* --instrumentation-- */")
+        ),
         // Calculate local duration
         j.expressionStatement(
           j.assignmentExpression(
@@ -107,9 +118,12 @@ export default function transformer(file: FileInfo, api: API) {
             ),
             j.identifier('localDuration')
           )
+        ),
+        j.expressionStatement(
+            j.literal("/* --end-instrumentation-- */")
         )
       ];
-      
+
       // Insert timing code at the beginning of the function body
       path.node.body.body.unshift(...timingCode);
       
@@ -121,5 +135,12 @@ export default function transformer(file: FileInfo, api: API) {
   // Insert the timingsMap initialization at the beginning of the file
   root.get().node.program.body.unshift(timingsMapInit, ...timingsMapEntries);
   
-  return root.toSource();
+  // Get result string
+  const result = root.toSource();
+  
+  // Workaround: Replace the instrumentation comment literals with actual comments
+  // Opening comments get a new line before them, and have the "quote" characters removed
+  // Closing comments get a new line after them, and have the "quote" characters removed
+  return result.replace(/(^|\s+)"(\/\* --instrumentation-- \*\/)"(;?)/g, '\n$1$2')
+  .replace(/(^|\s+)"(\/\* --end-instrumentation-- \*\/)"(;?)/g, '$1$2\n')
 }
