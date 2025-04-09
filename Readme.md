@@ -109,6 +109,69 @@ Foo();
 
 - Write Unit Tests and always run them. You can run tests with `npm run test`
 
+## Testing Approach
+
+The project uses a comprehensive testing strategy to ensure the codemod works correctly:
+
+### Test Structure
+
+- Tests are written using Vitest
+- Tests are organized in a hierarchical structure with `describe` and `it` blocks
+- Each test focuses on a specific aspect of the transformation
+
+### Test Types
+
+1. **Unit Tests**: Test individual components of the transformation
+
+   - Function name detection
+   - TimingsMap initialization
+   - Timing instrumentation at function start/end
+   - Return statement handling
+
+2. **Integration Tests**: Test complete transformations
+
+   - Simple function transformation
+   - Functions with return statements
+   - Conditional return statements
+   - Nested function handling
+
+3. **Performance Tests**: Test the actual timing functionality
+   - Verify that timing measurements are accurate
+
+### Fixtures Approach
+
+To make tests more maintainable and readable, we use a fixtures-based approach:
+
+1. **Fixture Files**: Test cases are stored in separate files in the `__fixtures__` directory
+
+   - Input files: `*.js` (e.g., `simple-function.js`)
+   - Expected output files: `*.expected.js` (e.g., `simple-function.expected.js`)
+
+2. **Benefits**:
+
+   - Cleaner test code without large string literals
+   - Easier to maintain and update test cases
+   - Better readability for complex test cases
+   - Separation of test logic from test data
+
+3. **Usage in Tests**:
+
+   ```typescript
+   const source = readFixture("simple-function.js");
+   const expected = readFixture("simple-function.expected.js");
+
+   const result = transform({ source });
+   expect(result).toEqual(expected);
+   ```
+
+4. **Maintenance**:
+   - Fixture files should be kept clean (no trailing whitespace)
+   - When adding new test cases, create corresponding fixture files
+   - Use the `sed` command to clean whitespace if needed:
+     ```bash
+     find add-instrumentation-profiler/__fixtures__ -type f -name "*.js" -exec sed -i '' 's/[[:space:]]*$//' {} \;
+     ```
+
 ## Implementation Todo List
 
 ### Phase 1: Basic Setup and Function Detection ✓
