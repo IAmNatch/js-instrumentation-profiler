@@ -121,14 +121,14 @@ function Foo() {
     it('should transform nested functions with complete timing instrumentation', () => {
       const source = readFixture('nested-functions.js', __filename);
       const expected = readFixture('nested-functions.expected.js', __filename);
-      
       const result = transform({source});
+
       expect(result).toEqual(expected);
     });
 
     it("should add performance test specific code when isPerformanceTest is true", () => {
       const source = readFixture('simple-function.js', __filename);
-      const result = transform({source}, true);
+      const result = transform({source}, { isPerformanceTest: true });
       
       // Check that the getPerformanceResults function is added
       expect(result).toContain('function getPerformanceResults()');
@@ -142,6 +142,14 @@ function Foo() {
       const lastLine = result.split('\n').filter(line => line.trim()).pop();
       expect(lastLine).toBe('getPerformanceResults();');
     });
+
+    it('should transform separate functions with one calling the other', () => {
+      const source = readFixture('separate-functions.js', __filename);
+      const expected = readFixture('separate-functions.expected.js', __filename);
+      const result = transform({source});
+    
+      expect(result).toEqual(expected);
+    });
   });
 
   describe("instrumentation quality", () => {
@@ -150,7 +158,7 @@ function Foo() {
       const source = readDynamicFixture('simple-function.js', {
         SLEEP_FUNCTION_FOO: sleepSyncCode(SIMPLE_SLEEP_DURATION)
       }, __filename);
-      const codeToRun = transform({source}, true);
+      const codeToRun = transform({source}, { isPerformanceTest: true });
       
       // evaluate result code using javascript eval
       const result = eval(codeToRun);
@@ -165,7 +173,7 @@ function Foo() {
         SLEEP_FUNCTION_OUTER: sleepSyncCode(NESTED_OUTER_SLEEP_DURATION),
         SLEEP_FUNCTION_INNER: sleepSyncCode(NESTED_INNER_SLEEP_DURATION)
       }, __filename);
-      const codeToRun = transform({source}, true);
+      const codeToRun = transform({source}, { isPerformanceTest: true });
       
       // evaluate result code using javascript eval
       const result = eval(codeToRun);
@@ -177,6 +185,38 @@ function Foo() {
       // Check inner function timing
       expect(result.inner.totalDuration).toBeCloseTo(NESTED_INNER_SLEEP_DURATION, 0);
       expect(result.inner.calls).toBe(1);
+    });
+
+    it("should correctly time separate functions with one calling the other", () => {
+      const FIRST_FUNCTION_BEFORE_SLEEP = 5;
+      const SECOND_FUNCTION_SLEEP = 10;
+      const FIRST_FUNCTION_AFTER_SLEEP = 7;
+      
+      const source = readDynamicFixture('separate-functions.js', {
+        SLEEP_FUNCTION_FIRST_BEFORE: sleepSyncCode(FIRST_FUNCTION_BEFORE_SLEEP),
+        SLEEP_FUNCTION_SECOND: sleepSyncCode(SECOND_FUNCTION_SLEEP),
+        SLEEP_FUNCTION_FIRST_AFTER: sleepSyncCode(FIRST_FUNCTION_AFTER_SLEEP)
+      }, __filename);
+      
+      const codeToRun = transform({source}, { isPerformanceTest: true });
+      // console.log(codeToRun);
+      
+      // Log the transformed code for debugging
+      console.log("Transformed code:", codeToRun);
+      
+      // evaluate result code using javascript eval
+      const result = eval(codeToRun);
+      
+      // Log the result for debugging
+      console.log("Result:", result);
+      
+      // Check firstFunction timing (should be sum of before and after sleep, not including secondFunction)
+      expect(result.firstFunction.totalDuration).toBeCloseTo(FIRST_FUNCTION_BEFORE_SLEEP + FIRST_FUNCTION_AFTER_SLEEP, 0);
+      expect(result.firstFunction.calls).toBe(1);
+      
+      // Check secondFunction timing
+      expect(result.secondFunction.totalDuration).toBeCloseTo(SECOND_FUNCTION_SLEEP, 0);
+      expect(result.secondFunction.calls).toBe(1);
     });
   })
 });

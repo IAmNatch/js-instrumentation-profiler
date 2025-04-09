@@ -6,12 +6,9 @@ import { applyTransform, type TestOptions } from 'jscodeshift/src/testUtils';
  * and set the parser to 'ts' for TypeScript
  */
 export function createTestTransform(transformer: Transform) {
-  const options: Options = {};
   const testOptions: TestOptions = { parser: 'ts' };
-  return (input: { path?: string; source: string; }, isPerformanceTest?: boolean) => {
-    if (isPerformanceTest !== undefined) {
-      options.isPerformanceTest = isPerformanceTest;
-    }
-    return applyTransform(transformer, options, input, testOptions);
+  return (input: { path?: string; source: string; }, options?: { isPerformanceTest?: boolean }) => {
+    // Create a new options object for each call, passing it directly to the transformer
+    return applyTransform(transformer, options || {}, input, testOptions);
   };
 }

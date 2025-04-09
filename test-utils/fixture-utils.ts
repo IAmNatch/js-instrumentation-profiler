@@ -26,6 +26,18 @@ export const readDynamicFixture = (
 ) => {
   const __dirname = dirname(testFilePath);
   let content = readFileSync(join(__dirname, '__fixtures__', 'dynamic', filename), 'utf8');
+  
+  // Validate that each placeholder has at least one match in the content
+  for (const [key, value] of Object.entries(replacements)) {
+    const placeholderRegex = new RegExp(`//\\s*@INJECT:\\s*${key}`, 'g');
+    const matches = content.match(placeholderRegex);
+    
+    if (!matches || matches.length === 0) {
+      throw new Error(`No matches found for placeholder "// @INJECT: ${key}" in fixture file "${filename}". Check that the placeholder exists in the file and is correctly formatted.`);
+    }
+  }
+  
+  // Perform replacements
   for (const [key, value] of Object.entries(replacements)) {
     // Replace comment-based placeholders (// @INJECT: KEY)
     content = content.replace(new RegExp(`//\\s*@INJECT:\\s*${key}`, 'g'), value);
