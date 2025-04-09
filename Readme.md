@@ -137,10 +137,10 @@ Foo();
   - [x] Add instrumentation comments for clarity
   - [x] Verify basic instrumentation works
   - [ ] Verify we support calling multiple functions
-- [ ] Handle function return statements
+- [x] Handle function return statements
   - [x] Add test for functions with return statements
-  - [ ] Ensure timing code works with returns
-  - [ ] Verify return handling works
+  - [x] Ensure timing code works with returns
+  - [x] Verify return handling works
 
 ### Phase 3: Nested Function Handling
 

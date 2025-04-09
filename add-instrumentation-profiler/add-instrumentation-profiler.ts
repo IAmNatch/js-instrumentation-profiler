@@ -46,8 +46,6 @@ export default function transformer(file: FileInfo, api: API) {
     if (path.node.id) {
       const functionName = path.node.id.name as string;
       
-      
-      
       // Create the timing code
       const timingCode = [
         j.expressionStatement(
@@ -127,8 +125,25 @@ export default function transformer(file: FileInfo, api: API) {
       // Insert timing code at the beginning of the function body
       path.node.body.body.unshift(...timingCode);
       
-      // Insert end timing code at the end of the function body
-      path.node.body.body.push(...endTimingCode);
+      // Find all return statements in the function body, including those in nested blocks
+      const returnPaths = j(path).find(j.ReturnStatement);
+      
+      // Insert timing code before each return statement
+      returnPaths.forEach(returnPath => {
+        // Get the parent statement list
+        const parentBody = returnPath.parent.node.body;
+        
+        // Find the index of the return statement in its parent block
+        const returnIndex = parentBody.indexOf(returnPath.node);
+        
+        // Insert the timing code before the return statement
+        parentBody.splice(returnIndex, 0, ...endTimingCode);
+      });
+      
+      // If there are no return statements, append the end timing code at the end
+      if (returnPaths.length === 0) {
+        path.node.body.body.push(...endTimingCode);
+      }
     }
   });
   

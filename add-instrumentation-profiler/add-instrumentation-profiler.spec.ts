@@ -113,5 +113,113 @@ Foo();`;
     console.log(result);
     expect(result).toEqual(expected);
   });
+
+  it('should include handle return statements', () => {
+    const source = `
+function Foo() {
+  let num = 1 + 5;
+  console.log("Foo");
+  let num2 = num * 2;
+  return num2;
+}
+`;
+    const result = transform({source});
+    
+    // Define the expected result
+    const expectedResult = `const timingsMap = new Map();
+
+timingsMap.set("Foo", {
+  totalDuration: 0,
+  calls: 0
+});
+
+function Foo() {
+
+  /* --instrumentation-- */
+  timingsMap.get("Foo").calls += 1;
+  let startTime = performance.now();
+  let localDuration = 0;
+  /* --end-instrumentation-- */
+
+  let num = 1 + 5;
+  console.log("Foo");
+  let num2 = num * 2;
+
+  /* --instrumentation-- */
+  localDuration = performance.now() - startTime;
+  timingsMap.get("Foo").totalDuration += localDuration;
+  /* --end-instrumentation-- */
+
+  return num2;
+}`;
+    
+    // Compare the result with the expected result
+    expect(result).toEqual(expectedResult);
+  });
+
+  it('should handle conditional return statements', () => {
+    const source = `
+function processNumber(num) {
+  if (num < 0) {
+    console.log("negative");
+    return -1;
+  } else if (num === 0) {
+    return 0;
+  }
+  
+  const result = num * 2;
+  return result;
+}
+`;
+    const result = transform({source});
+    
+    // Define the expected result
+    const expectedResult = `const timingsMap = new Map();
+
+timingsMap.set("processNumber", {
+  totalDuration: 0,
+  calls: 0
+});
+
+function processNumber(num) {
+
+  /* --instrumentation-- */
+  timingsMap.get("processNumber").calls += 1;
+  let startTime = performance.now();
+  let localDuration = 0;
+  /* --end-instrumentation-- */
+
+  if (num < 0) {
+    console.log("negative");
+
+    /* --instrumentation-- */
+    localDuration = performance.now() - startTime;
+    timingsMap.get("processNumber").totalDuration += localDuration;
+    /* --end-instrumentation-- */
+
+    return -1;
+  } else if (num === 0) {
+
+    /* --instrumentation-- */
+    localDuration = performance.now() - startTime;
+    timingsMap.get("processNumber").totalDuration += localDuration;
+    /* --end-instrumentation-- */
+
+    return 0;
+  }
+
+  const result = num * 2;
+
+  /* --instrumentation-- */
+  localDuration = performance.now() - startTime;
+  timingsMap.get("processNumber").totalDuration += localDuration;
+  /* --end-instrumentation-- */
+
+  return result;
+}`;
+    
+    // Compare the result with the expected result
+    expect(result).toEqual(expectedResult);
+  });
 });
 
