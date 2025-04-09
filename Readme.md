@@ -4,8 +4,70 @@ It works by adding timings to all function calls and method calls.
 
 ## Usage
 
+### Installation
+
+```bash
+npm install jscodeshift-add-instrumentation-profiling
 ```
-Coming Soon!
+
+### Basic Usage
+
+To transform a JavaScript file with instrumentation profiling:
+
+```bash
+npx jscodeshift -t node_modules/jscodeshift-add-instrumentation-profiling/add-instrumentation-profiler.js your-file.js
+```
+
+> **Note:** Currently, this codemod only works with single file libraries. Multi-file projects are not supported.
+
+### Options
+
+The codemod accepts the following options:
+
+- `isPerformanceTest` (boolean): When set to `true`, adds a `getPerformanceResults()` function that returns timing data for all functions and automatically calls it at the end of the file.
+
+Example with performance testing enabled:
+
+```bash
+npx jscodeshift -t node_modules/jscodeshift-add-instrumentation-profiling/add-instrumentation-profiler.js --isPerformanceTest=true your-file.js
+```
+
+### What Gets Instrumented
+
+The codemod automatically instruments:
+
+1. Function declarations
+2. Arrow functions
+3. Nested function calls
+4. Functions with return statements
+5. Functions with conditional returns
+
+### Output
+
+The transformed code will include:
+
+1. A `timingsMap` to store timing data for each function
+2. Performance timing measurements at the start and end of each function
+3. Call counting for each function
+4. Proper handling of nested function calls
+5. Accurate timing even with return statements
+
+### Performance Results
+
+When `isPerformanceTest` is enabled, you can access the timing data through the `getPerformanceResults()` function, which returns an object with:
+
+- `totalDuration`: Total time spent in the function (in milliseconds)
+- `calls`: Number of times the function was called
+
+Example output:
+
+```javascript
+{
+  "functionName": {
+    totalDuration: 123.45,
+    calls: 5
+  }
+}
 ```
 
 ## How it works
@@ -276,23 +338,23 @@ To make tests more maintainable and readable, we use a fixtures-based approach:
   - [x] Implement call tracking for internal functions
   - [x] Verify internal call tracking works
 
-### Phase 4: Method Call Instrumentation
+### Phase 4: Method Call Instrumentation ✓
 
-- [ ] Add method call detection
-  - [ ] Add test for method calls
-  - [ ] Implement method name extraction
-  - [ ] Verify method detection works
-- [ ] Implement method call instrumentation
-  - [ ] Add test for method call timing
-  - [ ] Add timing code for method calls
-  - [ ] Verify method timing works
+- [x] Add method call detection
+  - [x] Add test for method calls
+  - [x] Implement method name extraction
+  - [x] Verify method detection works
+- [x] Implement method call instrumentation
+  - [x] Add test for method call timing
+  - [x] Add timing code for method calls
+  - [x] Verify method timing works
 
 ### Phase 5: Edge Cases and Refinement
 
-- [ ] Handle arrow functions
-  - [ ] Add test for arrow function transformation
-  - [ ] Implement arrow function timing
-  - [ ] Verify arrow function handling works
+- [x] Handle arrow functions
+  - [x] Add test for arrow function transformation
+  - [x] Implement arrow function timing
+  - [x] Verify arrow function handling works
 - [ ] Handle class methods
   - [ ] Add test for class method transformation
   - [ ] Implement class method timing
