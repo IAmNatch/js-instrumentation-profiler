@@ -2,6 +2,7 @@
   "name": "jscodeshift-add-instrumentation-profiling",
   "version": "1.0.0",
   "description": "It works by adding timings to all function calls and method calls.",
+  "type": "module",
   "main": "index.js",
   "scripts": {
     "test": "vitest --run",
