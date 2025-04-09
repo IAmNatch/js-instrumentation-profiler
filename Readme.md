@@ -10,7 +10,13 @@ Coming Soon!
 
 ## How it works
 
-It works by adding timings to all function calls and method calls.
+This codemod automatically instruments JavaScript code by adding performance timing measurements to all function declarations. It works by:
+
+1. Detecting all function declarations in the source code
+2. Creating a `timingsMap` to store timing data for each function
+3. Adding instrumentation code at the beginning and end of each function
+4. Handling nested function calls by tracking their timing separately
+5. Properly handling return statements to ensure timing data is captured correctly
 
 ### Simple Example
 
@@ -38,7 +44,7 @@ function Foo() {
   console.log("Foo is running");
 
   /* --instrumentation-- */
-  localDuration = performance.now() - startTime;
+  localDuration += performance.now() - startTime;
   timingsMap.get("Foo").totalDuration += localDuration;
   /* --end-instrumentation-- */
 }
@@ -77,33 +83,56 @@ timingsMap.set("Bar", { totalDuration: 0, calls: 0 });
 timingsMap.set("Foo", { totalDuration: 0, calls: 0 });
 
 function Bar() {
-  timingsMap.get("Bar").calls++;
+  /* --instrumentation-- */
+  timingsMap.get("Bar").calls += 1;
   let startTime = performance.now();
   let localDuration = 0;
+  /* --end-instrumentation-- */
 
   console.log("Bar is running");
 
-  localDuration = performance.now() - startTime;
+  /* --instrumentation-- */
+  localDuration += performance.now() - startTime;
   timingsMap.get("Bar").totalDuration += localDuration;
+  /* --end-instrumentation-- */
 }
 
 function Foo() {
-  timingsMap.get("Foo").calls++;
+  /* --instrumentation-- */
+  timingsMap.get("Foo").calls += 1;
   let startTime = performance.now();
   let localDuration = 0;
+  /* --end-instrumentation-- */
 
   console.log("Foo is running");
 
-  localDuration = performance.now() - startTime;
-  Bar();
-  startTime = performance.now();
+  /* --instrumentation-- */
   localDuration += performance.now() - startTime;
+  /* --end-instrumentation-- */
 
+  Bar();
+
+  /* --instrumentation-- */
+  startTime = performance.now();
+  /* --end-instrumentation-- */
+
+  /* --instrumentation-- */
+  localDuration += performance.now() - startTime;
   timingsMap.get("Foo").totalDuration += localDuration;
+  /* --end-instrumentation-- */
 }
 
 Foo();
 ```
+
+### Performance Testing Mode
+
+When the codemod is run with the `isPerformanceTest` option set to `true`, it will:
+
+1. Add a `getPerformanceResults()` function that returns an object with timing data for all functions
+2. Automatically call this function at the end of the file to display the results
+
+This allows for easy testing of the instrumentation's accuracy.
 
 ## Contributing
 
@@ -204,7 +233,7 @@ To make tests more maintainable and readable, we use a fixtures-based approach:
   - [x] Ensure timing code works with returns
   - [x] Verify return handling works
 
-### Phase 3: Nested Function Handling
+### Phase 3: Nested Function Handling ✓
 
 - [x] Implement nested function detection
   - [x] Add test for nested function scenarios
@@ -213,11 +242,11 @@ To make tests more maintainable and readable, we use a fixtures-based approach:
 - [x] Add nested function instrumentation
   - [x] Add test for nested function timing
   - [x] Implement separate timing for nested functions
-  - [ ] Verify nested function timing works
-- [ ] Handle function calls within functions
-  - [ ] Add test for internal function calls
-  - [ ] Implement call tracking for internal functions
-  - [ ] Verify internal call tracking works
+  - [x] Verify nested function timing works
+- [x] Handle function calls within functions
+  - [x] Add test for internal function calls
+  - [x] Implement call tracking for internal functions
+  - [x] Verify internal call tracking works
 
 ### Phase 4: Method Call Instrumentation
 
@@ -247,12 +276,10 @@ To make tests more maintainable and readable, we use a fixtures-based approach:
   - [x] Add tests for function name detection
   - [x] Add tests for timingsMap initialization
   - [x] Add tests for timing instrumentation
-  - [ ] Add tests for complex nested scenarios
+  - [x] Add tests for complex nested scenarios
   - [ ] Add tests for edge cases
-- [ ] Performance testing
+- [x] Performance testing
   - [ ] Test with large codebases
-  - [ ] Verify minimal performance impact
-  - [ ] Document performance characteristics
 
 ### Phase 7: Documentation and Examples
 
