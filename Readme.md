@@ -29,14 +29,18 @@ const timingsMap = new Map();
 timingsMap.set("Foo", { totalDuration: 0, calls: 0 });
 
 function Foo() {
-  timingsMap.get("Foo").calls++;
+  /* --instrumentation-- */
+  timingsMap.get("Foo").calls += 1;
   let startTime = performance.now();
   let localDuration = 0;
+  /* --end-instrumentation-- */
 
   console.log("Foo is running");
 
+  /* --instrumentation-- */
   localDuration = performance.now() - startTime;
   timingsMap.get("Foo").totalDuration += localDuration;
+  /* --end-instrumentation-- */
 }
 
 Foo();
@@ -130,7 +134,9 @@ Foo();
   - [x] Add performance.now() timing code
   - [x] Add call counter increment
   - [x] Add duration calculation and storage
+  - [x] Add instrumentation comments for clarity
   - [x] Verify basic instrumentation works
+  - [ ] Verify we support calling multiple functions
 - [ ] Handle function return statements
   - [x] Add test for functions with return statements
   - [ ] Ensure timing code works with returns
