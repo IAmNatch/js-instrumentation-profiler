@@ -146,16 +146,38 @@ function Foo() {
 
   describe("instrumentation quality", () => {
     it("should accurately instrument a single function", () => {
+      const SIMPLE_SLEEP_DURATION = 10;
       const source = readDynamicFixture('simple-function.js', {
-        SLEEP_FUNCTION_FOO: sleepSyncCode(10)
+        SLEEP_FUNCTION_FOO: sleepSyncCode(SIMPLE_SLEEP_DURATION)
       }, __filename);
       const codeToRun = transform({source}, true);
       
       // evaluate result code using javascript eval
       const result = eval(codeToRun);
-      expect(result.Foo.totalDuration).toBeCloseTo(10, 0);
+      expect(result.Foo.totalDuration).toBeCloseTo(SIMPLE_SLEEP_DURATION, 0);
       expect(result.Foo.calls).toBe(1);
-    })
+    });
+
+    it("should accurately instrument nested functions", () => {
+      const NESTED_OUTER_SLEEP_DURATION = 5;
+      const NESTED_INNER_SLEEP_DURATION = 3;
+      const source = readDynamicFixture('nested-functions.js', {
+        SLEEP_FUNCTION_OUTER: sleepSyncCode(NESTED_OUTER_SLEEP_DURATION),
+        SLEEP_FUNCTION_INNER: sleepSyncCode(NESTED_INNER_SLEEP_DURATION)
+      }, __filename);
+      const codeToRun = transform({source}, true);
+      
+      // evaluate result code using javascript eval
+      const result = eval(codeToRun);
+      
+      // Check outer function timing
+      expect(result.outer.totalDuration).toBeCloseTo(NESTED_OUTER_SLEEP_DURATION, 0);
+      expect(result.outer.calls).toBe(1);
+      
+      // Check inner function timing
+      expect(result.inner.totalDuration).toBeCloseTo(NESTED_INNER_SLEEP_DURATION, 0);
+      expect(result.inner.calls).toBe(1);
+    });
   })
 });
 
