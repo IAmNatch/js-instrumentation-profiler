@@ -1,6 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { createTestTransform } from '../test-utils/create-test-transform';
 import transformer from './add-instrumentation-profiler';
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+
+const __dirname = dirname(__filename);
+
+const readFixture = (filename: string) => {
+  return readFileSync(join(__dirname, '__fixtures__', filename), 'utf8');
+};
 
 describe("add-instrumentation-profiler", () => {
   const transform = createTestTransform(transformer);
@@ -77,162 +85,31 @@ function Foo() {
     });
 
     it('should transform a simple function with timing instrumentation', () => {
-      const source = `
-function Foo() {
-  console.log("Foo is running");
-}
-
-Foo();
-`;
-      const expected = `const timingsMap = new Map();
-
-timingsMap.set("Foo", {
-  totalDuration: 0,
-  calls: 0
-});
-
-function Foo() {
-
-  /* --instrumentation-- */
-  timingsMap.get("Foo").calls += 1;
-  let startTime = performance.now();
-  let localDuration = 0;
-  /* --end-instrumentation-- */
-
-  console.log("Foo is running");
-
-  /* --instrumentation-- */
-  localDuration += performance.now() - startTime;
-  timingsMap.get("Foo").totalDuration += localDuration;
-  /* --end-instrumentation-- */
-
-}
-
-Foo();`;
+      const source = readFixture('simple-function.js');
+      const expected = readFixture('simple-function.expected.js');
       
       const result = transform({source});
       expect(result).toEqual(expected);
     });
 
     it('should include handle return statements', () => {
-      const source = `
-function Foo() {
-  let num = 1 + 5;
-  console.log("Foo");
-  let num2 = num * 2;
-  return num2;
-}
-`;
+      const source = readFixture('return-statement.js');
+      const expected = readFixture('return-statement.expected.js');
+      
       const result = transform({source});
-      
-      // Define the expected result
-      const expectedResult = `const timingsMap = new Map();
-
-timingsMap.set("Foo", {
-  totalDuration: 0,
-  calls: 0
-});
-
-function Foo() {
-
-  /* --instrumentation-- */
-  timingsMap.get("Foo").calls += 1;
-  let startTime = performance.now();
-  let localDuration = 0;
-  /* --end-instrumentation-- */
-
-  let num = 1 + 5;
-  console.log("Foo");
-  let num2 = num * 2;
-
-  /* --instrumentation-- */
-  localDuration += performance.now() - startTime;
-  timingsMap.get("Foo").totalDuration += localDuration;
-  /* --end-instrumentation-- */
-
-  return num2;
-}`;
-      
-      // Compare the result with the expected result
-      expect(result).toEqual(expectedResult);
+      expect(result).toEqual(expected);
     });
 
     it('should handle conditional return statements', () => {
-      const source = `
-function processNumber(num) {
-  if (num < 0) {
-    console.log("negative");
-    return -1;
-  } else if (num === 0) {
-    return 0;
-  }
-  
-  const result = num * 2;
-  return result;
-}
-`;
+      const source = readFixture('conditional-return.js');
+      const expected = readFixture('conditional-return.expected.js');
+      
       const result = transform({source});
-      
-      // Define the expected result
-      const expectedResult = `const timingsMap = new Map();
-
-timingsMap.set("processNumber", {
-  totalDuration: 0,
-  calls: 0
-});
-
-function processNumber(num) {
-
-  /* --instrumentation-- */
-  timingsMap.get("processNumber").calls += 1;
-  let startTime = performance.now();
-  let localDuration = 0;
-  /* --end-instrumentation-- */
-
-  if (num < 0) {
-    console.log("negative");
-
-    /* --instrumentation-- */
-    localDuration += performance.now() - startTime;
-    timingsMap.get("processNumber").totalDuration += localDuration;
-    /* --end-instrumentation-- */
-
-    return -1;
-  } else if (num === 0) {
-
-    /* --instrumentation-- */
-    localDuration += performance.now() - startTime;
-    timingsMap.get("processNumber").totalDuration += localDuration;
-    /* --end-instrumentation-- */
-
-    return 0;
-  }
-
-  const result = num * 2;
-
-  /* --instrumentation-- */
-  localDuration += performance.now() - startTime;
-  timingsMap.get("processNumber").totalDuration += localDuration;
-  /* --end-instrumentation-- */
-
-  return result;
-}`;
-      
-      // Compare the result with the expected result
-      expect(result).toEqual(expectedResult);
+      expect(result).toEqual(expected);
     });
 
     it('should detect nested functions and add them to timingsMap', () => {
-      const source = `
-function outer() {
-  function inner() {
-    console.log("Inner function");
-  }
-  
-  inner();
-  console.log("Outer function");
-}
-`;
+      const source = readFixture('nested-functions.js');
       const result = transform({source});
       
       // Check that both outer and inner functions are added to timingsMap
@@ -245,99 +122,15 @@ function outer() {
     });
 
     it('should transform nested functions with complete timing instrumentation', () => {
-      const source = `
-function outer() {
-  function inner() {
-    console.log("Inner function");
-    return "inner result";
-  }
-
-  const calculateSomething = 1 + 2
-  const calculateSomethingElse = 3 + 4
-  const result = inner();
-  const calculationSomethingOnceMore = 5 + 6
-  console.log("Outer function");
-  return result;
-}
-`;
+      const source = readFixture('nested-functions.js');
+      const expected = readFixture('nested-functions.expected.js');
+      
       const result = transform({source});
-      
-      // Define the expected result
-      const expectedResult = `const timingsMap = new Map();
-
-timingsMap.set("outer", {
-  totalDuration: 0,
-  calls: 0
-});
-
-timingsMap.set("inner", {
-  totalDuration: 0,
-  calls: 0
-});
-
-function outer() {
-
-  /* --instrumentation-- */
-  timingsMap.get("outer").calls += 1;
-  let startTime = performance.now();
-  let localDuration = 0;
-  /* --end-instrumentation-- */
-
-  function inner() {
-
-    /* --instrumentation-- */
-    timingsMap.get("inner").calls += 1;
-    let startTime = performance.now();
-    let localDuration = 0;
-    /* --end-instrumentation-- */
-
-    console.log("Inner function");
-
-    /* --instrumentation-- */
-    localDuration += performance.now() - startTime;
-    timingsMap.get("inner").totalDuration += localDuration;
-    /* --end-instrumentation-- */
-
-    return "inner result";
-  }
-
-  const calculateSomething = 1 + 2
-  const calculateSomethingElse = 3 + 4
-
-  /* --instrumentation-- */
-  localDuration += performance.now() - startTime;
-  /* --end-instrumentation-- */
-
-  const result = inner();
-
-  /* --instrumentation-- */
-  startTime = performance.now();
-  /* --end-instrumentation-- */
-
-  const calculationSomethingOnceMore = 5 + 6
-  console.log("Outer function");
-
-  /* --instrumentation-- */
-  localDuration += performance.now() - startTime;
-  timingsMap.get("outer").totalDuration += localDuration;
-  /* --end-instrumentation-- */
-
-  return result;
-}`;
-      
-      // Compare the result with the expected result
-      expect(result).toEqual(expectedResult);
+      expect(result).toEqual(expected);
     });
 
     it("should add performance test specific code when isPerformanceTest is true", () => {
-      const source = `
-function Foo() {
-  console.log("Foo is running");
-  return 42;
-}
-
-Foo();
-`;
+      const source = readFixture('simple-function.js');
       const result = transform({source}, true);
       
       // Check that the getPerformanceResults function is added
