@@ -13,6 +13,9 @@ export default [
         sourceType: 'module',
       },
     },
+    env: {
+      node: true,
+    },
     plugins: {
       '@typescript-eslint': tseslint,
     },
