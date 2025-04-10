@@ -233,7 +233,7 @@ The project uses a comprehensive testing strategy to ensure the codemod works co
 
 To make tests more maintainable and readable, we use a fixtures-based approach:
 
-1. **Fixture Files**: Test cases are stored in separate files in the `__fixtures__` directory
+1. **Fixture Files**: Test cases are stored in separate files in the `__fixtures__/static/` directory
 
    - Input files: `*.js` (e.g., `simple-function.js`)
    - Expected output files: `*.expected.js` (e.g., `simple-function.expected.js`)
@@ -259,6 +259,7 @@ To make tests more maintainable and readable, we use a fixtures-based approach:
 4. **Dynamic Fixtures**:
 
    For tests that need to inject dynamic code (like performance testing), we use comment-based placeholders:
+   Test cases are stored in separate files in the `__fixtures__/dynamic/` directory
 
    ```javascript
    // Example dynamic fixture file

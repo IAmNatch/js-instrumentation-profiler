@@ -234,6 +234,14 @@ const Foo = () => {
 
       expect(result).toEqual(expected);
     });
+
+    it("should transform object methods with timing instrumentation", () => {
+      const source = readFixture("object-method.js", __filename);
+      const expected = readFixture("object-method.expected.js", __filename);
+      const result = transform({ source });
+
+      expect(result).toEqual(expected);
+    });
   });
 
   describe("instrumentation quality", () => {
