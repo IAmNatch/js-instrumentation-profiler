@@ -2,6 +2,7 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
+    forceRerunTriggers: ['**/package.json/**', '**/vitest.config.*/**', '**/vite.config.*/**', '**/__fixtures__/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'json-summary'],
