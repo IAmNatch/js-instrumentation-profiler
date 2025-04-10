@@ -286,10 +286,37 @@ export default function transformer(
       // Insert timing code before each return statement
       returnPaths.forEach((returnPath) => {
         // Get the parent statement list
-        const parentBody = returnPath.parent.node.body;
+        let parentBody;
+        let returnNode = returnPath.node;
+
+        // If the parent is an IfStatement, we need to wrap the consequent in a BlockStatement
+        if (j.IfStatement.check(returnPath.parent.node)) {
+          const ifStatement = returnPath.parent.node;
+          if (ifStatement.consequent === returnNode) {
+            // Create a new BlockStatement
+            const blockStatement = j.blockStatement([returnNode]);
+            // Replace the consequent with the BlockStatement
+            ifStatement.consequent = blockStatement;
+            // Update the parent body and return node references
+            parentBody = blockStatement.body;
+          } else if (ifStatement.alternate === returnNode) {
+            // Create a new BlockStatement
+            const blockStatement = j.blockStatement([returnNode]);
+            // Replace the alternate with the BlockStatement
+            ifStatement.alternate = blockStatement;
+            // Update the parent body and return node references
+            parentBody = blockStatement.body;
+          } else {
+            // Return is nested deeper, get the parent BlockStatement
+            parentBody = returnPath.parent.node.body;
+          }
+        } else {
+          // Normal case - parent is a BlockStatement
+          parentBody = returnPath.parent.node.body;
+        }
 
         // Find the index of the return statement in its parent block
-        const returnIndex = parentBody.indexOf(returnPath.node);
+        const returnIndex = parentBody.indexOf(returnNode);
 
         // Insert the timing code before the return statement
         parentBody.splice(returnIndex, 0, ...endTimingCode);
@@ -533,10 +560,37 @@ export default function transformer(
           // Insert timing code before each return statement
           returnPaths.forEach((returnPath) => {
             // Get the parent statement list
-            const parentBody = returnPath.parent.node.body;
+            let parentBody;
+            let returnNode = returnPath.node;
+
+            // If the parent is an IfStatement, we need to wrap the consequent in a BlockStatement
+            if (j.IfStatement.check(returnPath.parent.node)) {
+              const ifStatement = returnPath.parent.node;
+              if (ifStatement.consequent === returnNode) {
+                // Create a new BlockStatement
+                const blockStatement = j.blockStatement([returnNode]);
+                // Replace the consequent with the BlockStatement
+                ifStatement.consequent = blockStatement;
+                // Update the parent body and return node references
+                parentBody = blockStatement.body;
+              } else if (ifStatement.alternate === returnNode) {
+                // Create a new BlockStatement
+                const blockStatement = j.blockStatement([returnNode]);
+                // Replace the alternate with the BlockStatement
+                ifStatement.alternate = blockStatement;
+                // Update the parent body and return node references
+                parentBody = blockStatement.body;
+              } else {
+                // Return is nested deeper, get the parent BlockStatement
+                parentBody = returnPath.parent.node.body;
+              }
+            } else {
+              // Normal case - parent is a BlockStatement
+              parentBody = returnPath.parent.node.body;
+            }
 
             // Find the index of the return statement in its parent block
-            const returnIndex = parentBody.indexOf(returnPath.node);
+            const returnIndex = parentBody.indexOf(returnNode);
 
             // Insert the timing code before the return statement
             parentBody.splice(returnIndex, 0, ...endTimingCode);
