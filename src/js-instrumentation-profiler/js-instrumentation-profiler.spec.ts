@@ -264,6 +264,17 @@ const Foo = () => {
 
       expect(result).toEqual(expected);
     });
+
+    it("should handle mixed library and non-library functions in the same if statement", () => {
+      const source = readFixture("mixed-functions-in-if.js", __filename);
+      const expected = readFixture(
+        "mixed-functions-in-if.expected.js",
+        __filename
+      );
+      const result = transform({ source });
+
+      expect(result).toEqual(expected);
+    });
   });
 
   describe("instrumentation quality", () => {
