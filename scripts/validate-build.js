@@ -18,7 +18,7 @@ if (!fs.existsSync(buildOutput)) {
 }
 
 // Try to run jscodeshift with the build output on a sample file
-const sampleFile = path.join(projectRoot, 'test', 'sample.js');
+const sampleFile = path.join(projectRoot, 'example-files', 'sample.js');
 if (!fs.existsSync(sampleFile)) {
   fs.writeFileSync(sampleFile, 'function test() { console.log("test"); }');
 }
