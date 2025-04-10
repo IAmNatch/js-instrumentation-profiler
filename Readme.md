@@ -292,6 +292,140 @@ To make tests more maintainable and readable, we use a fixtures-based approach:
      find js-instrumentation-profiler/__fixtures__ -type f -name "*.js" -exec sed -i '' 's/[[:space:]]*$//' {} \;
      ```
 
+### Whitespace Guidelines for Fixture Files
+
+When generating fixture files, especially expected output files, follow these whitespace rules:
+
+1. **Indentation**:
+
+   - Use 2 spaces for indentation
+   - Never use tabs
+   - Maintain consistent indentation within code blocks
+   - Arrow functions and object methods follow the same indentation rules as regular functions
+
+2. **Line Spacing**:
+
+   - Add a single blank line between major code blocks (e.g., between function declarations)
+   - Add a single blank line before instrumentation blocks
+   - No blank lines within instrumentation blocks
+   - No blank lines between related statements within a function
+   - Add a single blank line between consecutive instrumentation blocks
+   - Add a single blank line between function calls and their surrounding code
+
+3. **Instrumentation Blocks**:
+
+   - Instrumentation comments should be on their own lines
+   - No extra spaces before or after instrumentation comments
+   - Format:
+     ```javascript
+     /* --instrumentation-- */
+     // instrumentation code
+     /* --end-instrumentation-- */
+     ```
+   - When multiple instrumentation blocks appear in sequence, maintain consistent spacing between them
+
+4. **Function Structure**:
+
+   - One blank line after function declaration
+   - One blank line before first instrumentation block
+   - One blank line after last instrumentation block
+   - No extra blank lines between function body statements
+   - For arrow functions, maintain the same spacing rules as regular functions
+   - For object methods, maintain the same spacing rules as regular functions
+
+5. **Map Initialization**:
+
+   - One blank line after `const timingsMap = new Map();`
+   - One blank line between each `timingsMap.set()` call
+   - One blank line after the last `timingsMap.set()` call
+   - Maintain consistent object property formatting in `timingsMap.set()` calls
+
+6. **Trailing Whitespace**:
+
+   - No trailing whitespace at the end of lines
+   - No trailing whitespace at the end of files
+   - Files should end with a single newline
+   - No trailing commas in object literals unless the object spans multiple lines
+
+7. **Line Length**:
+
+   - Keep lines under 80 characters where possible
+   - Break long lines at logical points (operators, commas)
+   - Maintain consistent indentation when breaking lines
+   - For long function calls or conditions, break after operators
+
+8. **Control Structures**:
+
+   - Add a single blank line before `if` statements
+   - Add a single blank line after `if` blocks
+   - Maintain consistent indentation within control structure blocks
+   - For complex conditions, break after logical operators
+
+9. **Function Calls and Expressions**:
+   - Add a single blank line before and after function calls that are part of control flow
+   - For chained function calls, maintain consistent indentation
+   - For complex expressions, break after operators and maintain consistent indentation
+
+Example of correct whitespace with complex patterns:
+
+```javascript
+const timingsMap = new Map();
+
+timingsMap.set("testFunction", {
+  totalDuration: 0,
+  calls: 0,
+});
+
+timingsMap.set("innerFunction", {
+  totalDuration: 0,
+  calls: 0,
+});
+
+function testFunction() {
+  /* --instrumentation-- */
+  timingsMap.get("testFunction").calls += 1;
+  let startTime = performance.now();
+  let localDuration = 0;
+  /* --end-instrumentation-- */
+
+  /* --instrumentation-- */
+  localDuration += performance.now() - startTime;
+  /* --end-instrumentation-- */
+
+  const result = innerFunction(5);
+
+  /* --instrumentation-- */
+  startTime = performance.now();
+  /* --end-instrumentation-- */
+
+  if (Math.random() > 0.5 && result) {
+    console.log("Condition met");
+  }
+
+  /* --instrumentation-- */
+  localDuration += performance.now() - startTime;
+  timingsMap.get("testFunction").totalDuration += localDuration;
+  /* --end-instrumentation-- */
+}
+
+const arrowFunction = (x) => {
+  /* --instrumentation-- */
+  timingsMap.get("arrowFunction").calls += 1;
+  let startTime = performance.now();
+  let localDuration = 0;
+  /* --end-instrumentation-- */
+
+  const result = x * 2;
+
+  /* --instrumentation-- */
+  localDuration += performance.now() - startTime;
+  timingsMap.get("arrowFunction").totalDuration += localDuration;
+  /* --end-instrumentation-- */
+
+  return result;
+};
+```
+
 ## Implementation Todo List
 
 ### Phase 1: Basic Setup and Function Detection ✓
