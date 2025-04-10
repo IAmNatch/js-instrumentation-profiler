@@ -18,6 +18,7 @@ function testFunction() {
   let localDuration = 0;
   /* --end-instrumentation-- */
 
+
   /* --instrumentation-- */
   localDuration += performance.now() - startTime;
   /* --end-instrumentation-- */
@@ -32,6 +33,7 @@ function testFunction() {
     console.log("Random number is greater than 0.5 and innerFunction returned true");
   }
 
+
   /* --instrumentation-- */
   localDuration += performance.now() - startTime;
   /* --end-instrumentation-- */
@@ -41,6 +43,7 @@ function testFunction() {
   /* --instrumentation-- */
   startTime = performance.now();
   /* --end-instrumentation-- */
+
 
   if (testFunction_innerFunction_result2 && Math.random() < 0.3) {
     console.log("innerFunction returned true and random number is less than 0.3");

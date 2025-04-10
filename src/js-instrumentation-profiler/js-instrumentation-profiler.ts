@@ -9,6 +9,11 @@ import type {
   FunctionDeclaration,
   Node,
   Collection,
+  Expression,
+  CallExpression,
+  LogicalExpression,
+  BinaryExpression,
+  Identifier,
 } from "jscodeshift";
 
 export default function transformer(
@@ -54,33 +59,114 @@ export default function transformer(
     // Find all if statements
     const ifStatements = j(path.node).find(j.IfStatement);
 
+    // Map to track function call counts within this function
+    const functionCallCounts = new Map<string, number>();
+
     ifStatements.forEach((ifPath) => {
       const ifStatement = ifPath.value;
       const test = ifStatement.test;
 
-      // Check if the test is a function call
-      if (j.CallExpression.check(test)) {
-        const callee = test.callee;
-        if (j.Identifier.check(callee) && functionNames.includes(callee.name)) {
-          // Get the function name from the path
-          let functionName = "anonymous";
-          if (j.FunctionDeclaration.check(path.node) && path.node.id) {
-            functionName = path.node.id.name as string;
+      // Function to process a node and extract function calls
+      const processNode = (
+        node:
+          | CallExpression
+          | LogicalExpression
+          | BinaryExpression
+          | Identifier,
+        parentNode: Node | null = null
+      ): CallExpression | LogicalExpression | BinaryExpression | Identifier => {
+        // If it's a call expression with a library function
+        if (j.CallExpression.check(node)) {
+          const callee = node.callee;
+          if (
+            j.Identifier.check(callee) &&
+            functionNames.includes(callee.name)
+          ) {
+            // Get the function name from the path
+            let functionName = "anonymous";
+            if (j.FunctionDeclaration.check(path.node) && path.node.id) {
+              functionName = path.node.id.name as string;
+            }
+
+            // Get the count for this function call
+            const count = functionCallCounts.get(callee.name) || 0;
+            functionCallCounts.set(callee.name, count + 1);
+
+            // Create a temporary variable for the function call result
+            const tempVarName =
+              count === 0
+                ? `${functionName}_${callee.name}_result`
+                : `${functionName}_${callee.name}_result${count + 1}`;
+            const tempVar = j.variableDeclaration("const", [
+              j.variableDeclarator(j.identifier(tempVarName), node),
+            ]);
+
+            // Insert the temporary variable declaration before the if statement
+            j(ifPath).insertBefore(tempVar);
+
+            // Return the identifier to replace the function call
+            return j.identifier(tempVarName);
           }
-
-          // Create a temporary variable for the function call result
-          const tempVarName = `${functionName}_${callee.name}_result`;
-          const tempVar = j.variableDeclaration("const", [
-            j.variableDeclarator(j.identifier(tempVarName), test),
-          ]);
-
-          // Replace the function call in the if condition with the temporary variable
-          ifStatement.test = j.identifier(tempVarName);
-
-          // Insert the temporary variable declaration before the if statement
-          j(ifPath).insertBefore(tempVar);
         }
-      }
+
+        // If it's a logical expression, process its left and right sides
+        if (j.LogicalExpression.check(node)) {
+          const left = processNode(
+            node.left as
+              | CallExpression
+              | LogicalExpression
+              | BinaryExpression
+              | Identifier,
+            node
+          );
+          const right = processNode(
+            node.right as
+              | CallExpression
+              | LogicalExpression
+              | BinaryExpression
+              | Identifier,
+            node
+          );
+
+          // Create a new logical expression with the processed sides
+          return j.logicalExpression(node.operator, left, right);
+        }
+
+        // If it's a binary expression, process its left and right sides
+        if (j.BinaryExpression.check(node)) {
+          const left = processNode(
+            node.left as
+              | CallExpression
+              | LogicalExpression
+              | BinaryExpression
+              | Identifier,
+            node
+          );
+          const right = processNode(
+            node.right as
+              | CallExpression
+              | LogicalExpression
+              | BinaryExpression
+              | Identifier,
+            node
+          );
+
+          // Create a new binary expression with the processed sides
+          return j.binaryExpression(node.operator, left, right);
+        }
+
+        // For other node types, return as is
+        return node;
+      };
+
+      // Process the test expression
+      ifStatement.test = processNode(
+        test as
+          | CallExpression
+          | LogicalExpression
+          | BinaryExpression
+          | Identifier
+      );
     });
 
     // Find all return statements and extract their expressions if they contain function calls
@@ -99,8 +185,15 @@ export default function transformer(
             functionName = path.node.id.name as string;
           }
 
+          // Get the count for this function call
+          const count = functionCallCounts.get(callee.name) || 0;
+          functionCallCounts.set(callee.name, count + 1);
+
           // Create a temporary variable for the return expression
-          const tempVarName = `${functionName}_${callee.name}_result`;
+          const tempVarName =
+            count === 0
+              ? `${functionName}_${callee.name}_result`
+              : `${functionName}_${callee.name}_result${count + 1}`;
           const tempVar = j.variableDeclaration("const", [
             j.variableDeclarator(
               j.identifier(tempVarName),
