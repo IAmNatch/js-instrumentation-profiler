@@ -1,6 +1,15 @@
-import type { API, FileInfo } from "jscodeshift";
-import type { Node } from "jscodeshift";
-import { ASTPath } from "jscodeshift";
+import type {
+  API,
+  FileInfo,
+  ASTPath,
+  ASTNode,
+  JSCodeshift,
+  IfStatement,
+  ReturnStatement,
+  FunctionDeclaration,
+  Node,
+  Collection,
+} from "jscodeshift";
 
 export default function transformer(
   file: FileInfo,
@@ -36,6 +45,72 @@ export default function transformer(
 
   // Create a map to store function names
   const functionNames: string[] = [];
+
+  // Helper function to extract function calls in if conditions
+  function extractFunctionCallInIfCondition(
+    path: ASTPath<ASTNode>,
+    j: JSCodeshift
+  ) {
+    // Find all if statements
+    const ifStatements = j(path.node as ASTNode).find(j.IfStatement);
+
+    ifStatements.forEach((ifPath) => {
+      const ifStatement = ifPath.value;
+      const test = ifStatement.test;
+
+      // Check if the test is a function call
+      if (j.CallExpression.check(test)) {
+        const callee = test.callee;
+        if (j.Identifier.check(callee) && functionNames.includes(callee.name)) {
+          // Get the function name from the path
+          const functionName = (path.node as any).id?.name || "anonymous";
+
+          // Create a temporary variable for the function call result
+          const tempVarName = `${functionName}_${callee.name}_result`;
+          const tempVar = j.variableDeclaration("const", [
+            j.variableDeclarator(j.identifier(tempVarName), test),
+          ]);
+
+          // Replace the function call in the if condition with the temporary variable
+          ifStatement.test = j.identifier(tempVarName);
+
+          // Insert the temporary variable declaration before the if statement
+          j(ifPath as ASTPath<ASTNode>).insertBefore(tempVar);
+        }
+      }
+    });
+
+    // Find all return statements and extract their expressions if they contain function calls
+    const returnStatements = j(path.node as ASTNode).find(j.ReturnStatement);
+    returnStatements.forEach((returnPath) => {
+      const returnStatement = returnPath.value;
+      if (
+        returnStatement.argument &&
+        j.CallExpression.check(returnStatement.argument)
+      ) {
+        const callee = returnStatement.argument.callee;
+        if (j.Identifier.check(callee) && functionNames.includes(callee.name)) {
+          // Get the function name from the path
+          const functionName = (path.node as any).id?.name || "anonymous";
+
+          // Create a temporary variable for the return expression
+          const tempVarName = `${functionName}_${callee.name}_result`;
+          const tempVar = j.variableDeclaration("const", [
+            j.variableDeclarator(
+              j.identifier(tempVarName),
+              returnStatement.argument
+            ),
+          ]);
+
+          // Replace the expression with the temporary variable
+          returnStatement.argument = j.identifier(tempVarName);
+
+          // Insert the temporary variable declaration before the return statement
+          j(returnPath as ASTPath<ASTNode>).insertBefore(tempVar);
+        }
+      }
+    });
+  }
 
   // Collect all function names from function declarations
   functionDeclarations.forEach((path) => {
@@ -98,6 +173,9 @@ export default function transformer(
   functionDeclarations.forEach((path) => {
     if (path.node.id) {
       const functionName = path.node.id.name as string;
+
+      // Extract function calls in if conditions
+      extractFunctionCallInIfCondition(path, j);
 
       // Create the timing code
       const timingCode = [
@@ -362,6 +440,9 @@ export default function transformer(
       ) {
         const functionName = declaration.id.name;
         const arrowFunction = declaration.init;
+
+        // Extract function calls in if conditions
+        extractFunctionCallInIfCondition(path, j);
 
         // Create the timing code
         const timingCode = [
@@ -650,6 +731,9 @@ export default function transformer(
     ) {
       const functionName = node.left.property.name;
       const functionExpression = node.right as any;
+
+      // Extract function calls in if conditions
+      extractFunctionCallInIfCondition(path, j);
 
       // Create the timing code
       const timingCode = [

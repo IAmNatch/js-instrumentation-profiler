@@ -242,6 +242,17 @@ const Foo = () => {
 
       expect(result).toEqual(expected);
     });
+
+    it("should properly instrument function calls inside if statement conditions", () => {
+      const source = readFixture("function-in-if-condition.js", __filename);
+      const expected = readFixture(
+        "function-in-if-condition.expected.js",
+        __filename
+      );
+      const result = transform({ source });
+
+      expect(result).toEqual(expected);
+    });
   });
 
   describe("instrumentation quality", () => {
@@ -358,6 +369,43 @@ const Foo = () => {
         SECOND_FUNCTION_SLEEP
       );
       expect(result.secondFunction.calls).toBe(1);
+    });
+
+    it("should correctly time functions called inside if statement conditions", () => {
+      const INNER_FUNCTION_SLEEP = 20; // 20ms
+      const OUTER_FUNCTION_BEFORE_SLEEP = 10; // 10ms
+      const OUTER_FUNCTION_AFTER_SLEEP = 10; // 10ms
+
+      const source = readDynamicFixture(
+        "function-in-if-condition.js",
+        {
+          SLEEP_FUNCTION_INNER: sleepSyncCode(INNER_FUNCTION_SLEEP),
+          SLEEP_FUNCTION_OUTER_BEFORE: sleepSyncCode(
+            OUTER_FUNCTION_BEFORE_SLEEP
+          ),
+          SLEEP_FUNCTION_OUTER_AFTER: sleepSyncCode(OUTER_FUNCTION_AFTER_SLEEP),
+        },
+        __filename
+      );
+
+      const codeToRun = transform({ source }, { isPerformanceTest: true });
+
+      // evaluate result code using javascript eval
+      const result = eval(codeToRun);
+
+      // Check innerFunction timing
+      expectDurationWithVariance(
+        result.innerFunction.totalDuration,
+        INNER_FUNCTION_SLEEP
+      );
+      expect(result.innerFunction.calls).toBe(1);
+
+      // Check outerFunction timing (should be sum of before and after sleep, not including innerFunction)
+      expectDurationWithVariance(
+        result.outerFunction.totalDuration,
+        OUTER_FUNCTION_BEFORE_SLEEP + OUTER_FUNCTION_AFTER_SLEEP
+      );
+      expect(result.outerFunction.calls).toBe(1);
     });
   });
 });
