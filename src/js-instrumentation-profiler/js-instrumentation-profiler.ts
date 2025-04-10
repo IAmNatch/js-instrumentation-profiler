@@ -4,12 +4,7 @@ import type {
   ASTPath,
   ASTNode,
   JSCodeshift,
-  IfStatement,
-  ReturnStatement,
-  FunctionDeclaration,
   Node,
-  Collection,
-  Expression,
   CallExpression,
   LogicalExpression,
   BinaryExpression,
@@ -68,12 +63,7 @@ export default function transformer(
 
       // Function to process a node and extract function calls
       const processNode = (
-        node:
-          | CallExpression
-          | LogicalExpression
-          | BinaryExpression
-          | Identifier,
-        parentNode: Node | null = null
+        node: CallExpression | LogicalExpression | BinaryExpression | Identifier
       ): CallExpression | LogicalExpression | BinaryExpression | Identifier => {
         // If it's a call expression with a library function
         if (j.CallExpression.check(node)) {
@@ -116,16 +106,14 @@ export default function transformer(
               | CallExpression
               | LogicalExpression
               | BinaryExpression
-              | Identifier,
-            node
+              | Identifier
           );
           const right = processNode(
             node.right as
               | CallExpression
               | LogicalExpression
               | BinaryExpression
-              | Identifier,
-            node
+              | Identifier
           );
 
           // Create a new logical expression with the processed sides
@@ -139,16 +127,14 @@ export default function transformer(
               | CallExpression
               | LogicalExpression
               | BinaryExpression
-              | Identifier,
-            node
+              | Identifier
           );
           const right = processNode(
             node.right as
               | CallExpression
               | LogicalExpression
               | BinaryExpression
-              | Identifier,
-            node
+              | Identifier
           );
 
           // Create a new binary expression with the processed sides
