@@ -8,6 +8,7 @@
     "test": "vitest --run",
     "test:watch": "vitest",
     "test:coverage": "vitest --coverage",
+    "test:against-library": "mkdir -p ./example-output && rm -f ./example-output/decimal.js && cp ./example-files/decimal.js ./example-output/decimal.out.js && npx jscodeshift -t ./src/js-instrumentation-profiler/js-instrumentation-profiler.ts ./example-output/decimal.out.js",
     "lint": "eslint . --ext .ts,.tsx",
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "build": "tsc",
