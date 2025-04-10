@@ -7,13 +7,14 @@ export default defineConfig({
       reporter: ['text', 'json', 'json-summary'],
       exclude: [
         '**/__fixtures__/**',
+        'build/**',
         '**/node_modules/**',
         '**/dist/**',
         '**/.{idea,git,cache,output}/**',
         '**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,tsup,build}.config.*',
       ],
       include: [
-        'js-instrumentation-profiler/**/*.{js,jsx,ts,tsx}',
+        'src/**/*.{js,jsx,ts,tsx}',
       ],
     },
   },
