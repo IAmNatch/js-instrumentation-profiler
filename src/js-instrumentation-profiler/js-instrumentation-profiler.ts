@@ -92,7 +92,26 @@ export default function transformer(
             ]);
 
             // Insert the temporary variable declaration before the if statement
-            j(ifPath).insertBefore(tempVar);
+            // First, find the parent statement list
+            let currentPath = ifPath;
+            while (
+              currentPath &&
+              !Array.isArray(currentPath.parent.node.body)
+            ) {
+              currentPath = currentPath.parent;
+            }
+
+            if (
+              currentPath &&
+              currentPath.parent &&
+              Array.isArray(currentPath.parent.node.body)
+            ) {
+              const parentBody = currentPath.parent.node.body;
+              const statementIndex = parentBody.indexOf(currentPath.node);
+              if (statementIndex !== -1) {
+                parentBody.splice(statementIndex, 0, tempVar);
+              }
+            }
 
             // Return the identifier to replace the function call
             return j.identifier(tempVarName);
@@ -191,7 +210,40 @@ export default function transformer(
           returnStatement.argument = j.identifier(tempVarName);
 
           // Insert the temporary variable declaration before the return statement
-          j(returnPath).insertBefore(tempVar);
+          // First, find the parent statement list
+          let insertPath = returnPath;
+          while (insertPath && !Array.isArray(insertPath.parent.node.body)) {
+            insertPath = insertPath.parent;
+          }
+
+          if (
+            insertPath &&
+            insertPath.parent &&
+            Array.isArray(insertPath.parent.node.body)
+          ) {
+            const parentBody = insertPath.parent.node.body;
+            const statementIndex = parentBody.indexOf(insertPath.node);
+            if (statementIndex !== -1) {
+              parentBody.splice(statementIndex, 0, tempVar);
+            }
+          } else {
+            // If we can't find a parent with a body array, try to wrap the statement in a block
+            if (
+              returnPath.parent &&
+              j.IfStatement.check(returnPath.parent.node)
+            ) {
+              const ifStatement = returnPath.parent.node;
+              const blockStatement = j.blockStatement([
+                tempVar,
+                returnPath.node,
+              ]);
+              if (ifStatement.consequent === returnPath.node) {
+                ifStatement.consequent = blockStatement;
+              } else if (ifStatement.alternate === returnPath.node) {
+                ifStatement.alternate = blockStatement;
+              }
+            }
+          }
         }
       }
     });

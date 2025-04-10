@@ -275,6 +275,51 @@ const Foo = () => {
 
       expect(result).toEqual(expected);
     });
+
+    it("should handle if statements without blocks", () => {
+      const source = `
+function innerFunction(x) {
+  return x > 0;
+}
+
+function outerFunction(x) {
+  if (innerFunction(x)) return true;
+  return false;
+}
+
+outerFunction(5);
+`;
+      const result = transform({ source });
+      expect(result).toContain(
+        "const outerFunction_innerFunction_result = innerFunction(x)"
+      );
+      expect(result).toContain("if (outerFunction_innerFunction_result)");
+    });
+
+    it("should handle return statements with function calls without blocks", () => {
+      const source = `
+function getValue() {
+  return 42;
+}
+
+function checkValue() {
+  if (condition) return getValue();
+  return false;
+}
+`;
+      const result = transform({ source });
+      // Check that the function call is extracted before the return
+      expect(result).toContain("const checkValue_getValue_result = getValue()");
+      // Check that the return uses the extracted value
+      expect(result).toContain("return checkValue_getValue_result");
+      // Check that timing code is added before the return
+      expect(result).toContain(
+        "localDuration += performance.now() - startTime"
+      );
+      expect(result).toContain(
+        'timingsMap.get("checkValue").totalDuration += localDuration'
+      );
+    });
   });
 
   describe("instrumentation quality", () => {
