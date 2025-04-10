@@ -52,7 +52,7 @@ export default function transformer(
     j: JSCodeshift
   ) {
     // Find all if statements
-    const ifStatements = j(path.node as ASTNode).find(j.IfStatement);
+    const ifStatements = j(path.node).find(j.IfStatement);
 
     ifStatements.forEach((ifPath) => {
       const ifStatement = ifPath.value;
@@ -63,7 +63,10 @@ export default function transformer(
         const callee = test.callee;
         if (j.Identifier.check(callee) && functionNames.includes(callee.name)) {
           // Get the function name from the path
-          const functionName = (path.node as any).id?.name || "anonymous";
+          let functionName = "anonymous";
+          if (j.FunctionDeclaration.check(path.node) && path.node.id) {
+            functionName = path.node.id.name as string;
+          }
 
           // Create a temporary variable for the function call result
           const tempVarName = `${functionName}_${callee.name}_result`;
@@ -75,13 +78,13 @@ export default function transformer(
           ifStatement.test = j.identifier(tempVarName);
 
           // Insert the temporary variable declaration before the if statement
-          j(ifPath as ASTPath<ASTNode>).insertBefore(tempVar);
+          j(ifPath).insertBefore(tempVar);
         }
       }
     });
 
     // Find all return statements and extract their expressions if they contain function calls
-    const returnStatements = j(path.node as ASTNode).find(j.ReturnStatement);
+    const returnStatements = j(path.node).find(j.ReturnStatement);
     returnStatements.forEach((returnPath) => {
       const returnStatement = returnPath.value;
       if (
@@ -91,7 +94,10 @@ export default function transformer(
         const callee = returnStatement.argument.callee;
         if (j.Identifier.check(callee) && functionNames.includes(callee.name)) {
           // Get the function name from the path
-          const functionName = (path.node as any).id?.name || "anonymous";
+          let functionName = "anonymous";
+          if (j.FunctionDeclaration.check(path.node) && path.node.id) {
+            functionName = path.node.id.name as string;
+          }
 
           // Create a temporary variable for the return expression
           const tempVarName = `${functionName}_${callee.name}_result`;
@@ -106,7 +112,7 @@ export default function transformer(
           returnStatement.argument = j.identifier(tempVarName);
 
           // Insert the temporary variable declaration before the return statement
-          j(returnPath as ASTPath<ASTNode>).insertBefore(tempVar);
+          j(returnPath).insertBefore(tempVar);
         }
       }
     });
@@ -730,7 +736,7 @@ export default function transformer(
       j.Identifier.check(node.left.property)
     ) {
       const functionName = node.left.property.name;
-      const functionExpression = node.right as any;
+      const functionExpression = node.right;
 
       // Extract function calls in if conditions
       extractFunctionCallInIfCondition(path, j);
@@ -820,7 +826,12 @@ export default function transformer(
       ];
 
       // Insert timing code at the beginning of the function body
-      functionExpression.body.body.unshift(...timingCode);
+      if (
+        j.FunctionExpression.check(functionExpression) &&
+        j.BlockStatement.check(functionExpression.body)
+      ) {
+        functionExpression.body.body.unshift(...timingCode);
+      }
 
       // Find all inner function calls
       const innerFunctionCalls = j(path)
@@ -982,7 +993,12 @@ export default function transformer(
 
       // If there are no return statements, append the end timing code at the end
       if (returnPaths.length === 0) {
-        functionExpression.body.body.push(...endTimingCode);
+        if (
+          j.FunctionExpression.check(functionExpression) &&
+          j.BlockStatement.check(functionExpression.body)
+        ) {
+          functionExpression.body.body.push(...endTimingCode);
+        }
       }
     }
   });
