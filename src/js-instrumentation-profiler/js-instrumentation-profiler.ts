@@ -15,6 +15,8 @@ import type {
   ObjectMethod,
   ClassDeclaration,
   AssignmentExpression,
+  Collection,
+  Statement,
 } from "jscodeshift";
 
 export default function transformer(
@@ -30,7 +32,10 @@ export default function transformer(
   const functionNames: string[] = [];
 
   // Helper function to create timing code for the beginning of a function
-  function createStartTimingCode(j: JSCodeshift, functionName: string) {
+  function createStartTimingCode(
+    j: JSCodeshift,
+    functionName: string
+  ): Statement[] {
     return [
       j.expressionStatement(j.literal("/* --instrumentation-- */")),
       // Increment call counter
@@ -75,7 +80,10 @@ export default function transformer(
   }
 
   // Helper function to create timing code for the end of a function
-  function createEndTimingCode(j: JSCodeshift, functionName: string) {
+  function createEndTimingCode(
+    j: JSCodeshift,
+    functionName: string
+  ): Statement[] {
     return [
       j.expressionStatement(j.literal("/* --instrumentation-- */")),
       // Calculate local duration
@@ -118,7 +126,7 @@ export default function transformer(
   }
 
   // Helper function to create timing code for before a function call
-  function createBeforeCallTimingCode(j: JSCodeshift) {
+  function createBeforeCallTimingCode(j: JSCodeshift): Statement[] {
     return [
       j.expressionStatement(j.literal("/* --instrumentation-- */")),
       // Calculate local duration
@@ -144,7 +152,7 @@ export default function transformer(
   }
 
   // Helper function to create timing code for after a function call
-  function createAfterCallTimingCode(j: JSCodeshift) {
+  function createAfterCallTimingCode(j: JSCodeshift): Statement[] {
     return [
       j.expressionStatement(j.literal("/* --instrumentation-- */")),
       // Reset start time
@@ -166,7 +174,10 @@ export default function transformer(
   }
 
   // Helper function to collect function names from various declarations
-  function collectFunctionNames(j: JSCodeshift, root: any) {
+  function collectFunctionNames(
+    j: JSCodeshift,
+    root: Collection<ASTNode>
+  ): void {
     // Find all function declarations
     root
       .find(j.FunctionDeclaration)
