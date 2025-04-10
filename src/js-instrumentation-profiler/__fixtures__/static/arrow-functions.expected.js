@@ -1,16 +1,16 @@
 const timingsMap = new Map();
 
-timingsMap.set("Foo", {
-  totalDuration: 0,
-  calls: 0
-});
-
 timingsMap.set("Bar", {
   totalDuration: 0,
   calls: 0
 });
 
 timingsMap.set("Baz", {
+  totalDuration: 0,
+  calls: 0
+});
+
+timingsMap.set("Foo", {
   totalDuration: 0,
   calls: 0
 });

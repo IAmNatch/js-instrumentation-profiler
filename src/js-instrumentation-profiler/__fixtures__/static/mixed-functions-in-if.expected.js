@@ -1,11 +1,11 @@
 const timingsMap = new Map();
 
-timingsMap.set("testFunction", {
+timingsMap.set("innerFunction", {
   totalDuration: 0,
   calls: 0
 });
 
-timingsMap.set("innerFunction", {
+timingsMap.set("testFunction", {
   totalDuration: 0,
   calls: 0
 });

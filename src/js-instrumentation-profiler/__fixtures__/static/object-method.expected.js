@@ -1,16 +1,16 @@
 const timingsMap = new Map();
 
-timingsMap.set("regularFunction", {
-  totalDuration: 0,
-  calls: 0
-});
-
 timingsMap.set("method1", {
   totalDuration: 0,
   calls: 0
 });
 
 timingsMap.set("method2", {
+  totalDuration: 0,
+  calls: 0
+});
+
+timingsMap.set("regularFunction", {
   totalDuration: 0,
   calls: 0
 });
@@ -43,7 +43,17 @@ obj.method2 = function() {
   /* --end-instrumentation-- */
 
   console.log("Method 2");
+
+  /* --instrumentation-- */
+  localDuration += performance.now() - startTime;
+  /* --end-instrumentation-- */
+
   obj.method1();
+
+  /* --instrumentation-- */
+  startTime = performance.now();
+  /* --end-instrumentation-- */
+
 
   /* --instrumentation-- */
   localDuration += performance.now() - startTime;
@@ -62,7 +72,17 @@ function regularFunction() {
   /* --end-instrumentation-- */
 
   console.log("Regular function");
+
+  /* --instrumentation-- */
+  localDuration += performance.now() - startTime;
+  /* --end-instrumentation-- */
+
   obj.method2();
+
+  /* --instrumentation-- */
+  startTime = performance.now();
+  /* --end-instrumentation-- */
+
 
   /* --instrumentation-- */
   localDuration += performance.now() - startTime;

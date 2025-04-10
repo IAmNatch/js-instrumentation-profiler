@@ -1,11 +1,11 @@
 const timingsMap = new Map();
 
-timingsMap.set("outer", {
+timingsMap.set("inner", {
   totalDuration: 0,
   calls: 0
 });
 
-timingsMap.set("inner", {
+timingsMap.set("outer", {
   totalDuration: 0,
   calls: 0
 });

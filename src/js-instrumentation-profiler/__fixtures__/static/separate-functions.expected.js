@@ -1,11 +1,11 @@
 const timingsMap = new Map();
 
-timingsMap.set("secondFunction", {
+timingsMap.set("firstFunction", {
   totalDuration: 0,
   calls: 0
 });
 
-timingsMap.set("firstFunction", {
+timingsMap.set("secondFunction", {
   totalDuration: 0,
   calls: 0
 });

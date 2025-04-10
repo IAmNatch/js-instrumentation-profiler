@@ -320,6 +320,14 @@ function checkValue() {
         'timingsMap.get("checkValue").totalDuration += localDuration'
       );
     });
+
+    it("should transform class methods with timing instrumentation", () => {
+      const source = readFixture("class-methods.js", __filename);
+      const expected = readFixture("class-methods.expected.js", __filename);
+      const result = transform({ source });
+
+      expect(result).toEqual(expected);
+    });
   });
 
   describe("instrumentation quality", () => {
@@ -473,6 +481,59 @@ function checkValue() {
         OUTER_FUNCTION_BEFORE_SLEEP + OUTER_FUNCTION_AFTER_SLEEP
       );
       expect(result.outerFunction.calls).toBe(1);
+    });
+
+    it("should accurately instrument class methods", () => {
+      const ADD_SLEEP_DURATION = 10; // 10ms
+      const MULTIPLY_SLEEP_DURATION = 15; // 15ms
+      const SUBTRACT_SLEEP_DURATION = 20; // 20ms
+      const DIVIDE_SLEEP_DURATION = 25; // 25ms
+      const RESET_SLEEP_DURATION = 5; // 5ms
+
+      const source = readDynamicFixture(
+        "class-methods.js",
+        {
+          SLEEP_FUNCTION_ADD: sleepSyncCode(ADD_SLEEP_DURATION),
+          SLEEP_FUNCTION_MULTIPLY: sleepSyncCode(MULTIPLY_SLEEP_DURATION),
+          SLEEP_FUNCTION_SUBTRACT: sleepSyncCode(SUBTRACT_SLEEP_DURATION),
+          SLEEP_FUNCTION_DIVIDE: sleepSyncCode(DIVIDE_SLEEP_DURATION),
+          SLEEP_FUNCTION_RESET: sleepSyncCode(RESET_SLEEP_DURATION),
+        },
+        __filename
+      );
+
+      const codeToRun = transform({ source }, { isPerformanceTest: true });
+
+      // evaluate result code using javascript eval
+      const result = eval(codeToRun);
+
+      // Check each method's timing
+      expectDurationWithVariance(result.add.totalDuration, ADD_SLEEP_DURATION);
+      expect(result.add.calls).toBe(1);
+
+      expectDurationWithVariance(
+        result.multiply.totalDuration,
+        MULTIPLY_SLEEP_DURATION
+      );
+      expect(result.multiply.calls).toBe(1);
+
+      expectDurationWithVariance(
+        result.subtract.totalDuration,
+        SUBTRACT_SLEEP_DURATION
+      );
+      expect(result.subtract.calls).toBe(1);
+
+      expectDurationWithVariance(
+        result.divide.totalDuration,
+        DIVIDE_SLEEP_DURATION
+      );
+      expect(result.divide.calls).toBe(1);
+
+      expectDurationWithVariance(
+        result.reset.totalDuration,
+        RESET_SLEEP_DURATION
+      );
+      expect(result.reset.calls).toBe(1);
     });
   });
 });
