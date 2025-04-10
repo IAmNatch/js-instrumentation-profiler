@@ -10,9 +10,11 @@ import type {
   BinaryExpression,
   Identifier,
   ReturnStatement,
-  MemberExpression,
-  Literal,
-  FunctionExpression,
+  FunctionDeclaration,
+  VariableDeclarator,
+  ObjectMethod,
+  ClassDeclaration,
+  AssignmentExpression,
 } from "jscodeshift";
 
 export default function transformer(
@@ -27,437 +29,224 @@ export default function transformer(
   // First, collect all function names
   const functionNames: string[] = [];
 
-  // Find all function declarations
-  root.find(j.FunctionDeclaration).forEach((path) => {
-    const node = path.node;
-    if (node.id && j.Identifier.check(node.id)) {
-      functionNames.push(node.id.name);
-    }
-  });
-
-  // Find all arrow functions
-  root.find(j.VariableDeclarator).forEach((path) => {
-    const node = path.node;
-    if (
-      j.Identifier.check(node.id) &&
-      j.ArrowFunctionExpression.check(node.init)
-    ) {
-      functionNames.push(node.id.name);
-    }
-  });
-
-  // Find all object methods
-  root.find(j.ObjectMethod).forEach((path) => {
-    const node = path.node;
-    if (j.Identifier.check(node.key)) {
-      functionNames.push(node.key.name);
-    }
-  });
-
-  // Find all class declarations
-  root.find(j.ClassDeclaration).forEach((classPath) => {
-    // Find all class methods
-    j(classPath)
-      .find(j.ClassMethod)
-      .forEach((methodPath) => {
-        const methodName = j.Identifier.check(methodPath.node.key)
-          ? methodPath.node.key.name
-          : "anonymousMethod";
-
-        // Skip constructor
-        if (methodName === "constructor") {
-          return;
-        }
-
-        const fullMethodName = methodName;
-
-        // Add method name to functionNames if not already present
-        if (!functionNames.includes(fullMethodName)) {
-          functionNames.push(fullMethodName);
-        }
-
-        // Create timing code for this method
-        const timingCode = [
-          j.expressionStatement(j.literal("/* --instrumentation-- */")),
-          j.expressionStatement(
-            j.assignmentExpression(
-              "+=",
+  // Helper function to create timing code for the beginning of a function
+  function createStartTimingCode(j: JSCodeshift, functionName: string) {
+    return [
+      j.expressionStatement(j.literal("/* --instrumentation-- */")),
+      // Increment call counter
+      j.expressionStatement(
+        j.assignmentExpression(
+          "+=",
+          j.memberExpression(
+            j.callExpression(
               j.memberExpression(
-                j.callExpression(
-                  j.memberExpression(
-                    j.identifier("timingsMap"),
-                    j.identifier("get")
-                  ),
-                  [j.stringLiteral(fullMethodName)]
-                ),
-                j.identifier("calls")
+                j.identifier("timingsMap"),
+                j.identifier("get")
               ),
-              j.numericLiteral(1)
-            )
+              [j.stringLiteral(functionName)]
+            ),
+            j.identifier("calls")
           ),
-          j.variableDeclaration("let", [
-            j.variableDeclarator(
-              j.identifier("startTime"),
-              j.callExpression(
-                j.memberExpression(
-                  j.identifier("performance"),
-                  j.identifier("now")
-                ),
-                []
-              )
+          j.numericLiteral(1)
+        )
+      ),
+      // Start timing
+      j.variableDeclaration("let", [
+        j.variableDeclarator(
+          j.identifier("startTime"),
+          j.callExpression(
+            j.memberExpression(
+              j.identifier("performance"),
+              j.identifier("now")
             ),
-          ]),
-          j.variableDeclaration("let", [
-            j.variableDeclarator(
-              j.identifier("localDuration"),
-              j.numericLiteral(0)
-            ),
-          ]),
-          j.expressionStatement(j.literal("/* --end-instrumentation-- */")),
-        ];
+            []
+          )
+        ),
+      ]),
+      // Initialize local duration
+      j.variableDeclaration("let", [
+        j.variableDeclarator(
+          j.identifier("localDuration"),
+          j.numericLiteral(0)
+        ),
+      ]),
+      j.expressionStatement(j.literal("/* --end-instrumentation-- */")),
+    ];
+  }
 
-        // Create end timing code
-        const endTimingCode = [
-          j.expressionStatement(j.literal("/* --instrumentation-- */")),
-          j.expressionStatement(
-            j.assignmentExpression(
-              "+=",
-              j.identifier("localDuration"),
-              j.binaryExpression(
-                "-",
-                j.callExpression(
-                  j.memberExpression(
-                    j.identifier("performance"),
-                    j.identifier("now")
-                  ),
-                  []
-                ),
-                j.identifier("startTime")
-              )
-            )
-          ),
-          j.expressionStatement(
-            j.assignmentExpression(
-              "+=",
+  // Helper function to create timing code for the end of a function
+  function createEndTimingCode(j: JSCodeshift, functionName: string) {
+    return [
+      j.expressionStatement(j.literal("/* --instrumentation-- */")),
+      // Calculate local duration
+      j.expressionStatement(
+        j.assignmentExpression(
+          "+=",
+          j.identifier("localDuration"),
+          j.binaryExpression(
+            "-",
+            j.callExpression(
               j.memberExpression(
-                j.callExpression(
-                  j.memberExpression(
-                    j.identifier("timingsMap"),
-                    j.identifier("get")
-                  ),
-                  [j.stringLiteral(fullMethodName)]
-                ),
-                j.identifier("totalDuration")
+                j.identifier("performance"),
+                j.identifier("now")
               ),
-              j.identifier("localDuration")
-            )
+              []
+            ),
+            j.identifier("startTime")
+          )
+        )
+      ),
+      // Add to total duration
+      j.expressionStatement(
+        j.assignmentExpression(
+          "+=",
+          j.memberExpression(
+            j.callExpression(
+              j.memberExpression(
+                j.identifier("timingsMap"),
+                j.identifier("get")
+              ),
+              [j.stringLiteral(functionName)]
+            ),
+            j.identifier("totalDuration")
           ),
-          j.expressionStatement(j.literal("/* --end-instrumentation-- */")),
-        ];
+          j.identifier("localDuration")
+        )
+      ),
+      j.expressionStatement(j.literal("/* --end-instrumentation-- */")),
+    ];
+  }
 
-        // Insert timing code at the beginning of the method body
-        methodPath.node.body.body.unshift(...timingCode);
+  // Helper function to create timing code for before a function call
+  function createBeforeCallTimingCode(j: JSCodeshift) {
+    return [
+      j.expressionStatement(j.literal("/* --instrumentation-- */")),
+      // Calculate local duration
+      j.expressionStatement(
+        j.assignmentExpression(
+          "+=",
+          j.identifier("localDuration"),
+          j.binaryExpression(
+            "-",
+            j.callExpression(
+              j.memberExpression(
+                j.identifier("performance"),
+                j.identifier("now")
+              ),
+              []
+            ),
+            j.identifier("startTime")
+          )
+        )
+      ),
+      j.expressionStatement(j.literal("/* --end-instrumentation-- */")),
+    ];
+  }
 
-        // Find all return statements in the method
-        const returnPaths = j(methodPath)
-          .find(j.ReturnStatement)
-          .filter((returnPath: ASTPath<ReturnStatement>) => {
-            return !returnPath.parent.parent.node.type.includes("Function");
-          });
+  // Helper function to create timing code for after a function call
+  function createAfterCallTimingCode(j: JSCodeshift) {
+    return [
+      j.expressionStatement(j.literal("/* --instrumentation-- */")),
+      // Reset start time
+      j.expressionStatement(
+        j.assignmentExpression(
+          "=",
+          j.identifier("startTime"),
+          j.callExpression(
+            j.memberExpression(
+              j.identifier("performance"),
+              j.identifier("now")
+            ),
+            []
+          )
+        )
+      ),
+      j.expressionStatement(j.literal("/* --end-instrumentation-- */")),
+    ];
+  }
 
-        // Insert timing code before each return statement
-        returnPaths.forEach((returnPath) => {
-          let parentBody;
-          let returnNode = returnPath.node;
-
-          if (j.IfStatement.check(returnPath.parent.node)) {
-            const ifStatement = returnPath.parent.node;
-            if (ifStatement.consequent === returnNode) {
-              const blockStatement = j.blockStatement([returnNode]);
-              ifStatement.consequent = blockStatement;
-              parentBody = blockStatement.body;
-            } else if (ifStatement.alternate === returnNode) {
-              const blockStatement = j.blockStatement([returnNode]);
-              ifStatement.alternate = blockStatement;
-              parentBody = blockStatement.body;
-            } else {
-              parentBody = returnPath.parent.node.body;
-            }
-          } else {
-            parentBody = returnPath.parent.node.body;
-          }
-
-          const returnIndex = parentBody.indexOf(returnNode);
-          parentBody.splice(returnIndex, 0, ...endTimingCode);
-        });
-
-        // If no return statements, append timing code at the end
-        if (returnPaths.length === 0) {
-          methodPath.node.body.body.push(...endTimingCode);
+  // Helper function to collect function names from various declarations
+  function collectFunctionNames(j: JSCodeshift, root: any) {
+    // Find all function declarations
+    root
+      .find(j.FunctionDeclaration)
+      .forEach((path: ASTPath<FunctionDeclaration>) => {
+        const node = path.node;
+        if (node.id && j.Identifier.check(node.id)) {
+          functionNames.push(node.id.name);
         }
       });
-  });
 
-  // Find all object method assignments
-  root
-    .find(j.AssignmentExpression)
-    .filter((path) => {
-      const left = path.node.left;
-      return (
-        j.MemberExpression.check(left) &&
-        j.FunctionExpression.check(path.node.right)
-      );
-    })
-    .forEach((path) => {
-      const left = path.node.left as MemberExpression;
-      if (j.MemberExpression.check(left)) {
-        const methodName = j.Identifier.check(left.property)
-          ? (left.property as Identifier).name
-          : ((left.property as Literal).value as string);
-        functionNames.push(methodName);
-
-        // Add timing instrumentation to the function body
-        const functionBody = (path.node.right as FunctionExpression).body;
-        if (j.BlockStatement.check(functionBody)) {
-          // Create the timing code
-          const timingCode = [
-            j.expressionStatement(j.literal("/* --instrumentation-- */")),
-            // Increment call counter
-            j.expressionStatement(
-              j.assignmentExpression(
-                "+=",
-                j.memberExpression(
-                  j.callExpression(
-                    j.memberExpression(
-                      j.identifier("timingsMap"),
-                      j.identifier("get")
-                    ),
-                    [j.stringLiteral(methodName)]
-                  ),
-                  j.identifier("calls")
-                ),
-                j.numericLiteral(1)
-              )
-            ),
-            // Start timing
-            j.variableDeclaration("let", [
-              j.variableDeclarator(
-                j.identifier("startTime"),
-                j.callExpression(
-                  j.memberExpression(
-                    j.identifier("performance"),
-                    j.identifier("now")
-                  ),
-                  []
-                )
-              ),
-            ]),
-            // Initialize local duration
-            j.variableDeclaration("let", [
-              j.variableDeclarator(
-                j.identifier("localDuration"),
-                j.numericLiteral(0)
-              ),
-            ]),
-            j.expressionStatement(j.literal("/* --end-instrumentation-- */")),
-          ];
-
-          // Create the end timing code
-          const endTimingCode = [
-            j.expressionStatement(j.literal("/* --instrumentation-- */")),
-            // Calculate local duration
-            j.expressionStatement(
-              j.assignmentExpression(
-                "+=",
-                j.identifier("localDuration"),
-                j.binaryExpression(
-                  "-",
-                  j.callExpression(
-                    j.memberExpression(
-                      j.identifier("performance"),
-                      j.identifier("now")
-                    ),
-                    []
-                  ),
-                  j.identifier("startTime")
-                )
-              )
-            ),
-            // Add to total duration
-            j.expressionStatement(
-              j.assignmentExpression(
-                "+=",
-                j.memberExpression(
-                  j.callExpression(
-                    j.memberExpression(
-                      j.identifier("timingsMap"),
-                      j.identifier("get")
-                    ),
-                    [j.stringLiteral(methodName)]
-                  ),
-                  j.identifier("totalDuration")
-                ),
-                j.identifier("localDuration")
-              )
-            ),
-            j.expressionStatement(j.literal("/* --end-instrumentation-- */")),
-          ];
-
-          // Insert timing code at the beginning of the function body
-          functionBody.body.unshift(...timingCode);
-
-          // Find all inner function calls
-          const innerFunctionCalls = j(path)
-            .find(j.CallExpression)
-            .filter((callPath) => {
-              const callee = callPath.node.callee;
-              if (j.Identifier.check(callee)) {
-                return functionNames.indexOf(callee.name) !== -1;
-              }
-              // Also check for method calls (e.g., obj.method())
-              if (j.MemberExpression.check(callee)) {
-                const property = callee.property;
-                return (
-                  j.Identifier.check(property) &&
-                  functionNames.includes(property.name)
-                );
-              }
-              return false;
-            });
-
-          // Insert timing code around inner function calls
-          innerFunctionCalls.forEach((callPath) => {
-            // Find the parent statement
-            let currentPath = callPath;
-            while (
-              currentPath &&
-              !j.ExpressionStatement.check(currentPath.node) &&
-              !j.VariableDeclaration.check(currentPath.node)
-            ) {
-              currentPath = currentPath.parent;
-            }
-
-            if (
-              currentPath &&
-              currentPath.parent &&
-              Array.isArray(currentPath.parent.node.body)
-            ) {
-              const parentBody = currentPath.parent.node.body;
-              const callIndex = parentBody.indexOf(currentPath.node);
-
-              if (callIndex !== -1) {
-                // Create timing code for before the call
-                const beforeCallCode = [
-                  j.expressionStatement(j.literal("/* --instrumentation-- */")),
-                  j.expressionStatement(
-                    j.assignmentExpression(
-                      "+=",
-                      j.identifier("localDuration"),
-                      j.binaryExpression(
-                        "-",
-                        j.callExpression(
-                          j.memberExpression(
-                            j.identifier("performance"),
-                            j.identifier("now")
-                          ),
-                          []
-                        ),
-                        j.identifier("startTime")
-                      )
-                    )
-                  ),
-                  j.expressionStatement(
-                    j.literal("/* --end-instrumentation-- */")
-                  ),
-                ];
-
-                // Create timing code for after the call
-                const afterCallCode = [
-                  j.expressionStatement(j.literal("/* --instrumentation-- */")),
-                  j.expressionStatement(
-                    j.assignmentExpression(
-                      "=",
-                      j.identifier("startTime"),
-                      j.callExpression(
-                        j.memberExpression(
-                          j.identifier("performance"),
-                          j.identifier("now")
-                        ),
-                        []
-                      )
-                    )
-                  ),
-                  j.expressionStatement(
-                    j.literal("/* --end-instrumentation-- */")
-                  ),
-                ];
-
-                // Insert the timing code and move the call
-                const callNode = currentPath.node;
-                parentBody.splice(callIndex, 1); // Remove the original call
-
-                // Insert timing code before the call
-                parentBody.splice(callIndex, 0, ...beforeCallCode);
-
-                // Insert the call
-                parentBody.splice(
-                  callIndex + beforeCallCode.length,
-                  0,
-                  callNode
-                );
-
-                // Insert timing code after the call
-                parentBody.splice(
-                  callIndex + beforeCallCode.length + 1,
-                  0,
-                  ...afterCallCode
-                );
-              }
-            }
-          });
-
-          // Find all return statements and add timing code before them
-          const returnPaths = j(path)
-            .find(j.ReturnStatement)
-            .filter((returnPath) => {
-              return !returnPath.parent.parent.node.type.includes("Function");
-            });
-
-          returnPaths.forEach((returnPath) => {
-            let parentBody;
-            let returnNode = returnPath.node;
-
-            if (j.IfStatement.check(returnPath.parent.node)) {
-              const ifStatement = returnPath.parent.node;
-              if (ifStatement.consequent === returnNode) {
-                const blockStatement = j.blockStatement([returnNode]);
-                ifStatement.consequent = blockStatement;
-                parentBody = blockStatement.body;
-              } else if (ifStatement.alternate === returnNode) {
-                const blockStatement = j.blockStatement([returnNode]);
-                ifStatement.alternate = blockStatement;
-                parentBody = blockStatement.body;
-              } else {
-                parentBody = returnPath.parent.node.body;
-              }
-            } else {
-              parentBody = returnPath.parent.node.body;
-            }
-
-            const returnIndex = parentBody.indexOf(returnNode);
-            parentBody.splice(returnIndex, 0, ...endTimingCode);
-          });
-
-          // If no return statements, append timing code at the end
-          if (returnPaths.length === 0) {
-            functionBody.body.push(...endTimingCode);
-          }
+    // Find all arrow functions
+    root
+      .find(j.VariableDeclarator)
+      .forEach((path: ASTPath<VariableDeclarator>) => {
+        const node = path.node;
+        if (
+          j.Identifier.check(node.id) &&
+          j.ArrowFunctionExpression.check(node.init)
+        ) {
+          functionNames.push(node.id.name);
         }
+      });
+
+    // Find all object methods
+    root.find(j.ObjectMethod).forEach((path: ASTPath<ObjectMethod>) => {
+      const node = path.node;
+      if (j.Identifier.check(node.key)) {
+        functionNames.push(node.key.name);
       }
     });
 
-  // Sort function names alphabetically
-  functionNames.sort((a, b) => a.localeCompare(b));
+    // Find all class declarations
+    root
+      .find(j.ClassDeclaration)
+      .forEach((classPath: ASTPath<ClassDeclaration>) => {
+        // Find all class methods
+        j(classPath)
+          .find(j.ClassMethod)
+          .forEach((methodPath) => {
+            const methodName = j.Identifier.check(methodPath.node.key)
+              ? methodPath.node.key.name
+              : "anonymousMethod";
+
+            // Skip constructor
+            if (methodName === "constructor") {
+              return;
+            }
+
+            const fullMethodName = methodName;
+
+            // Add method name to functionNames if not already present
+            if (!functionNames.includes(fullMethodName)) {
+              functionNames.push(fullMethodName);
+            }
+          });
+      });
+
+    // Find all object method assignments (e.g. obj.method = function() {})
+    root
+      .find(j.AssignmentExpression)
+      .forEach((path: ASTPath<AssignmentExpression>) => {
+        const node = path.node;
+        if (
+          j.MemberExpression.check(node.left) &&
+          j.FunctionExpression.check(node.right) &&
+          j.Identifier.check(node.left.property)
+        ) {
+          const methodName = node.left.property.name;
+          if (!functionNames.includes(methodName)) {
+            functionNames.push(methodName);
+          }
+        }
+      });
+
+    // Sort function names alphabetically
+    functionNames.sort((a, b) => a.localeCompare(b));
+  }
+
+  // Collect all function names
+  collectFunctionNames(j, root);
 
   // Initialize timingsMap at the start of the file
   const timingsMapInit = j.variableDeclaration("const", [
@@ -500,21 +289,6 @@ export default function transformer(
         declaration.init &&
         j.ArrowFunctionExpression.check(declaration.init)
     );
-  });
-
-  // Find all object method assignments (e.g. obj.method = function() {})
-  root.find(j.AssignmentExpression).forEach((path) => {
-    const node = path.node;
-    if (
-      j.MemberExpression.check(node.left) &&
-      j.FunctionExpression.check(node.right) &&
-      j.Identifier.check(node.left.property)
-    ) {
-      const methodName = node.left.property.name;
-      if (!functionNames.includes(methodName)) {
-        functionNames.push(methodName);
-      }
-    }
   });
 
   // Helper function to extract function calls in if conditions
@@ -733,88 +507,8 @@ export default function transformer(
       extractFunctionCallInIfCondition(path, j);
 
       // Create the timing code
-      const timingCode = [
-        j.expressionStatement(j.literal("/* --instrumentation-- */")),
-        // Increment call counter
-        j.expressionStatement(
-          j.assignmentExpression(
-            "+=",
-            j.memberExpression(
-              j.callExpression(
-                j.memberExpression(
-                  j.identifier("timingsMap"),
-                  j.identifier("get")
-                ),
-                [j.stringLiteral(functionName)]
-              ),
-              j.identifier("calls")
-            ),
-            j.numericLiteral(1)
-          )
-        ),
-        // Start timing
-        j.variableDeclaration("let", [
-          j.variableDeclarator(
-            j.identifier("startTime"),
-            j.callExpression(
-              j.memberExpression(
-                j.identifier("performance"),
-                j.identifier("now")
-              ),
-              []
-            )
-          ),
-        ]),
-        // Initialize local duration
-        j.variableDeclaration("let", [
-          j.variableDeclarator(
-            j.identifier("localDuration"),
-            j.numericLiteral(0)
-          ),
-        ]),
-        j.expressionStatement(j.literal("/* --end-instrumentation-- */")),
-      ];
-
-      // Create the end timing code
-      const endTimingCode = [
-        j.expressionStatement(j.literal("/* --instrumentation-- */")),
-        // Calculate local duration
-        j.expressionStatement(
-          j.assignmentExpression(
-            "+=",
-            j.identifier("localDuration"),
-            j.binaryExpression(
-              "-",
-              j.callExpression(
-                j.memberExpression(
-                  j.identifier("performance"),
-                  j.identifier("now")
-                ),
-                []
-              ),
-              j.identifier("startTime")
-            )
-          )
-        ),
-        // Add to total duration
-        j.expressionStatement(
-          j.assignmentExpression(
-            "+=",
-            j.memberExpression(
-              j.callExpression(
-                j.memberExpression(
-                  j.identifier("timingsMap"),
-                  j.identifier("get")
-                ),
-                [j.stringLiteral(functionName)]
-              ),
-              j.identifier("totalDuration")
-            ),
-            j.identifier("localDuration")
-          )
-        ),
-        j.expressionStatement(j.literal("/* --end-instrumentation-- */")),
-      ];
+      const timingCode = createStartTimingCode(j, functionName);
+      const endTimingCode = createEndTimingCode(j, functionName);
 
       // Insert timing code at the beginning of the function body
       path.node.body.body.unshift(...timingCode);
@@ -861,48 +555,8 @@ export default function transformer(
           // Insert timing code before the call
           if (callIndex !== -1) {
             // Create timing code for before the call
-            const beforeCallCode = [
-              j.expressionStatement(j.literal("/* --instrumentation-- */")),
-              // Calculate local duration
-              j.expressionStatement(
-                j.assignmentExpression(
-                  "+=",
-                  j.identifier("localDuration"),
-                  j.binaryExpression(
-                    "-",
-                    j.callExpression(
-                      j.memberExpression(
-                        j.identifier("performance"),
-                        j.identifier("now")
-                      ),
-                      []
-                    ),
-                    j.identifier("startTime")
-                  )
-                )
-              ),
-              j.expressionStatement(j.literal("/* --end-instrumentation-- */")),
-            ];
-
-            // Create timing code for after the call
-            const afterCallCode = [
-              j.expressionStatement(j.literal("/* --instrumentation-- */")),
-              // Reset start time
-              j.expressionStatement(
-                j.assignmentExpression(
-                  "=",
-                  j.identifier("startTime"),
-                  j.callExpression(
-                    j.memberExpression(
-                      j.identifier("performance"),
-                      j.identifier("now")
-                    ),
-                    []
-                  )
-                )
-              ),
-              j.expressionStatement(j.literal("/* --end-instrumentation-- */")),
-            ];
+            const beforeCallCode = createBeforeCallTimingCode(j);
+            const afterCallCode = createAfterCallTimingCode(j);
 
             // Insert the timing code and move the call
             const callNode = currentPath.node;
@@ -1008,88 +662,8 @@ export default function transformer(
         extractFunctionCallInIfCondition(path, j);
 
         // Create the timing code
-        const timingCode = [
-          j.expressionStatement(j.literal("/* --instrumentation-- */")),
-          // Increment call counter
-          j.expressionStatement(
-            j.assignmentExpression(
-              "+=",
-              j.memberExpression(
-                j.callExpression(
-                  j.memberExpression(
-                    j.identifier("timingsMap"),
-                    j.identifier("get")
-                  ),
-                  [j.stringLiteral(functionName)]
-                ),
-                j.identifier("calls")
-              ),
-              j.numericLiteral(1)
-            )
-          ),
-          // Start timing
-          j.variableDeclaration("let", [
-            j.variableDeclarator(
-              j.identifier("startTime"),
-              j.callExpression(
-                j.memberExpression(
-                  j.identifier("performance"),
-                  j.identifier("now")
-                ),
-                []
-              )
-            ),
-          ]),
-          // Initialize local duration
-          j.variableDeclaration("let", [
-            j.variableDeclarator(
-              j.identifier("localDuration"),
-              j.numericLiteral(0)
-            ),
-          ]),
-          j.expressionStatement(j.literal("/* --end-instrumentation-- */")),
-        ];
-
-        // Create the end timing code
-        const endTimingCode = [
-          j.expressionStatement(j.literal("/* --instrumentation-- */")),
-          // Calculate local duration
-          j.expressionStatement(
-            j.assignmentExpression(
-              "+=",
-              j.identifier("localDuration"),
-              j.binaryExpression(
-                "-",
-                j.callExpression(
-                  j.memberExpression(
-                    j.identifier("performance"),
-                    j.identifier("now")
-                  ),
-                  []
-                ),
-                j.identifier("startTime")
-              )
-            )
-          ),
-          // Add to total duration
-          j.expressionStatement(
-            j.assignmentExpression(
-              "+=",
-              j.memberExpression(
-                j.callExpression(
-                  j.memberExpression(
-                    j.identifier("timingsMap"),
-                    j.identifier("get")
-                  ),
-                  [j.stringLiteral(functionName)]
-                ),
-                j.identifier("totalDuration")
-              ),
-              j.identifier("localDuration")
-            )
-          ),
-          j.expressionStatement(j.literal("/* --end-instrumentation-- */")),
-        ];
+        const timingCode = createStartTimingCode(j, functionName);
+        const endTimingCode = createEndTimingCode(j, functionName);
 
         // Check if the arrow function has a block body
         if (j.BlockStatement.check(arrowFunction.body)) {
@@ -1138,52 +712,8 @@ export default function transformer(
               // Insert timing code before the call
               if (callIndex !== -1) {
                 // Create timing code for before the call
-                const beforeCallCode = [
-                  j.expressionStatement(j.literal("/* --instrumentation-- */")),
-                  // Calculate local duration
-                  j.expressionStatement(
-                    j.assignmentExpression(
-                      "+=",
-                      j.identifier("localDuration"),
-                      j.binaryExpression(
-                        "-",
-                        j.callExpression(
-                          j.memberExpression(
-                            j.identifier("performance"),
-                            j.identifier("now")
-                          ),
-                          []
-                        ),
-                        j.identifier("startTime")
-                      )
-                    )
-                  ),
-                  j.expressionStatement(
-                    j.literal("/* --end-instrumentation-- */")
-                  ),
-                ];
-
-                // Create timing code for after the call
-                const afterCallCode = [
-                  j.expressionStatement(j.literal("/* --instrumentation-- */")),
-                  // Reset start time
-                  j.expressionStatement(
-                    j.assignmentExpression(
-                      "=",
-                      j.identifier("startTime"),
-                      j.callExpression(
-                        j.memberExpression(
-                          j.identifier("performance"),
-                          j.identifier("now")
-                        ),
-                        []
-                      )
-                    )
-                  ),
-                  j.expressionStatement(
-                    j.literal("/* --end-instrumentation-- */")
-                  ),
-                ];
+                const beforeCallCode = createBeforeCallTimingCode(j);
+                const afterCallCode = createAfterCallTimingCode(j);
 
                 // Insert the timing code and move the call
                 const callNode = currentPath.node;
@@ -1291,6 +821,324 @@ export default function transformer(
         }
       }
     });
+  });
+
+  // Transform object methods (e.g., obj.method = function() {})
+  const objectMethodAssignments = root
+    .find(j.AssignmentExpression)
+    .filter((path) => {
+      const node = path.node;
+      return (
+        j.MemberExpression.check(node.left) &&
+        j.FunctionExpression.check(node.right) &&
+        j.Identifier.check(node.left.property)
+      );
+    });
+
+  objectMethodAssignments.forEach((path) => {
+    const node = path.node;
+    if (
+      j.MemberExpression.check(node.left) &&
+      j.FunctionExpression.check(node.right) &&
+      j.Identifier.check(node.left.property)
+    ) {
+      const methodName = node.left.property.name;
+      const functionExpression = node.right;
+
+      // Create the timing code
+      const timingCode = createStartTimingCode(j, methodName);
+      const endTimingCode = createEndTimingCode(j, methodName);
+
+      // Insert timing code at the beginning of the function body
+      functionExpression.body.body.unshift(...timingCode);
+
+      // Find all inner function calls
+      const innerFunctionCalls = j(path)
+        .find(j.CallExpression)
+        .filter((callPath) => {
+          const callee = callPath.node.callee;
+          if (j.Identifier.check(callee)) {
+            return functionNames.indexOf(callee.name) !== -1;
+          }
+          // Also check for method calls (e.g., obj.method())
+          if (j.MemberExpression.check(callee)) {
+            const property = callee.property;
+            return (
+              j.Identifier.check(property) &&
+              functionNames.includes(property.name)
+            );
+          }
+          return false;
+        });
+
+      // Insert timing code around inner function calls
+      innerFunctionCalls.forEach((callPath) => {
+        // Find the parent statement (either ExpressionStatement or VariableDeclaration)
+        let currentPath = callPath;
+        while (
+          currentPath &&
+          !j.ExpressionStatement.check(currentPath.node) &&
+          !j.VariableDeclaration.check(currentPath.node)
+        ) {
+          currentPath = currentPath.parent;
+        }
+
+        if (
+          currentPath &&
+          currentPath.parent &&
+          Array.isArray(currentPath.parent.node.body)
+        ) {
+          const parentBody = currentPath.parent.node.body;
+          const callIndex = parentBody.indexOf(currentPath.node);
+
+          // Insert timing code before the call
+          if (callIndex !== -1) {
+            // Create timing code for before the call
+            const beforeCallCode = createBeforeCallTimingCode(j);
+            const afterCallCode = createAfterCallTimingCode(j);
+
+            // Insert the timing code and move the call
+            const callNode = currentPath.node;
+            parentBody.splice(callIndex, 1); // Remove the original call
+
+            // Insert timing code before the call
+            parentBody.splice(callIndex, 0, ...beforeCallCode);
+
+            // Insert the call
+            parentBody.splice(callIndex + beforeCallCode.length, 0, callNode);
+
+            // Insert timing code after the call
+            parentBody.splice(
+              callIndex + beforeCallCode.length + 1,
+              0,
+              ...afterCallCode
+            );
+          }
+        }
+      });
+
+      // Find all return statements in the function body
+      const returnPaths = j(path)
+        .find(j.ReturnStatement)
+        .filter((returnPath) => {
+          // Check if this return statement belongs to this function
+          let currentPath: ASTPath<Node> | null = returnPath;
+          while (currentPath && currentPath.node !== functionExpression) {
+            const node = currentPath.node;
+            if (
+              node &&
+              (j.FunctionDeclaration.check(node) ||
+                j.FunctionExpression.check(node) ||
+                j.ArrowFunctionExpression.check(node))
+            ) {
+              // This return belongs to a nested function
+              return false;
+            }
+            currentPath = currentPath.parent;
+          }
+          return true;
+        });
+
+      // Insert timing code before each return statement
+      returnPaths.forEach((returnPath) => {
+        // Get the parent statement list
+        let parentBody;
+        let returnNode = returnPath.node;
+
+        // If the parent is an IfStatement, we need to wrap the consequent in a BlockStatement
+        if (j.IfStatement.check(returnPath.parent.node)) {
+          const ifStatement = returnPath.parent.node;
+          if (ifStatement.consequent === returnNode) {
+            // Create a new BlockStatement
+            const blockStatement = j.blockStatement([returnNode]);
+            // Replace the consequent with the BlockStatement
+            ifStatement.consequent = blockStatement;
+            // Update the parent body and return node references
+            parentBody = blockStatement.body;
+          } else if (ifStatement.alternate === returnNode) {
+            // Create a new BlockStatement
+            const blockStatement = j.blockStatement([returnNode]);
+            // Replace the alternate with the BlockStatement
+            ifStatement.alternate = blockStatement;
+            // Update the parent body and return node references
+            parentBody = blockStatement.body;
+          } else {
+            // Return is nested deeper, get the parent BlockStatement
+            parentBody = returnPath.parent.node.body;
+          }
+        } else {
+          // Normal case - parent is a BlockStatement
+          parentBody = returnPath.parent.node.body;
+        }
+
+        // Find the index of the return statement in its parent block
+        const returnIndex = parentBody.indexOf(returnNode);
+
+        // Insert the timing code before the return statement
+        parentBody.splice(returnIndex, 0, ...endTimingCode);
+      });
+
+      // If there are no return statements, append the end timing code at the end
+      if (returnPaths.length === 0) {
+        functionExpression.body.body.push(...endTimingCode);
+      }
+    }
+  });
+
+  // Transform class methods
+  const classDeclarations = root.find(j.ClassDeclaration);
+  classDeclarations.forEach((classPath) => {
+    // Find all class methods
+    j(classPath)
+      .find(j.ClassMethod)
+      .forEach((methodPath) => {
+        const methodName = j.Identifier.check(methodPath.node.key)
+          ? methodPath.node.key.name
+          : "anonymousMethod";
+
+        // Skip constructor
+        if (methodName === "constructor") {
+          return;
+        }
+
+        // Create the timing code
+        const timingCode = createStartTimingCode(j, methodName);
+        const endTimingCode = createEndTimingCode(j, methodName);
+
+        // Insert timing code at the beginning of the method body
+        methodPath.node.body.body.unshift(...timingCode);
+
+        // Find all inner function calls
+        const innerFunctionCalls = j(methodPath)
+          .find(j.CallExpression)
+          .filter((callPath) => {
+            const callee = callPath.node.callee;
+            if (j.Identifier.check(callee)) {
+              return functionNames.indexOf(callee.name) !== -1;
+            }
+            // Also check for method calls (e.g., obj.method())
+            if (j.MemberExpression.check(callee)) {
+              const property = callee.property;
+              return (
+                j.Identifier.check(property) &&
+                functionNames.includes(property.name)
+              );
+            }
+            return false;
+          });
+
+        // Insert timing code around inner function calls
+        innerFunctionCalls.forEach((callPath) => {
+          // Find the parent statement (either ExpressionStatement or VariableDeclaration)
+          let currentPath = callPath;
+          while (
+            currentPath &&
+            !j.ExpressionStatement.check(currentPath.node) &&
+            !j.VariableDeclaration.check(currentPath.node)
+          ) {
+            currentPath = currentPath.parent;
+          }
+
+          if (
+            currentPath &&
+            currentPath.parent &&
+            Array.isArray(currentPath.parent.node.body)
+          ) {
+            const parentBody = currentPath.parent.node.body;
+            const callIndex = parentBody.indexOf(currentPath.node);
+
+            // Insert timing code before the call
+            if (callIndex !== -1) {
+              // Create timing code for before the call
+              const beforeCallCode = createBeforeCallTimingCode(j);
+              const afterCallCode = createAfterCallTimingCode(j);
+
+              // Insert the timing code and move the call
+              const callNode = currentPath.node;
+              parentBody.splice(callIndex, 1); // Remove the original call
+
+              // Insert timing code before the call
+              parentBody.splice(callIndex, 0, ...beforeCallCode);
+
+              // Insert the call
+              parentBody.splice(callIndex + beforeCallCode.length, 0, callNode);
+
+              // Insert timing code after the call
+              parentBody.splice(
+                callIndex + beforeCallCode.length + 1,
+                0,
+                ...afterCallCode
+              );
+            }
+          }
+        });
+
+        // Find all return statements in the method body
+        const returnPaths = j(methodPath)
+          .find(j.ReturnStatement)
+          .filter((returnPath) => {
+            // Check if this return statement belongs to this method
+            let currentPath: ASTPath<Node> | null = returnPath;
+            while (currentPath && currentPath.node !== methodPath.node) {
+              const node = currentPath.node;
+              if (
+                node &&
+                (j.FunctionDeclaration.check(node) ||
+                  j.FunctionExpression.check(node) ||
+                  j.ArrowFunctionExpression.check(node))
+              ) {
+                // This return belongs to a nested function
+                return false;
+              }
+              currentPath = currentPath.parent;
+            }
+            return true;
+          });
+
+        // Insert timing code before each return statement
+        returnPaths.forEach((returnPath) => {
+          // Get the parent statement list
+          let parentBody;
+          let returnNode = returnPath.node;
+
+          // If the parent is an IfStatement, we need to wrap the consequent in a BlockStatement
+          if (j.IfStatement.check(returnPath.parent.node)) {
+            const ifStatement = returnPath.parent.node;
+            if (ifStatement.consequent === returnNode) {
+              // Create a new BlockStatement
+              const blockStatement = j.blockStatement([returnNode]);
+              // Replace the consequent with the BlockStatement
+              ifStatement.consequent = blockStatement;
+              // Update the parent body and return node references
+              parentBody = blockStatement.body;
+            } else if (ifStatement.alternate === returnNode) {
+              // Create a new BlockStatement
+              const blockStatement = j.blockStatement([returnNode]);
+              // Replace the alternate with the BlockStatement
+              ifStatement.alternate = blockStatement;
+              // Update the parent body and return node references
+              parentBody = blockStatement.body;
+            } else {
+              // Return is nested deeper, get the parent BlockStatement
+              parentBody = returnPath.parent.node.body;
+            }
+          } else {
+            // Normal case - parent is a BlockStatement
+            parentBody = returnPath.parent.node.body;
+          }
+
+          // Find the index of the return statement in its parent block
+          const returnIndex = parentBody.indexOf(returnNode);
+
+          // Insert the timing code before the return statement
+          parentBody.splice(returnIndex, 0, ...endTimingCode);
+        });
+
+        // If there are no return statements, append the end timing code at the end
+        if (returnPaths.length === 0) {
+          methodPath.node.body.body.push(...endTimingCode);
+        }
+      });
   });
 
   // Add performance test specific code if isPerformanceTest is true
