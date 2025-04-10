@@ -40,21 +40,22 @@ jobs:
     - name: Run linting
       run: npm run lint
     
+    - name: Build package
+      run: npm run build
+    
+    - name: Validate build output
+      run: npm run validate-build
+    
     - name: Configure Git
       run: |
         git config --global user.name 'GitHub Actions'
         git config --global user.email 'github-actions@github.com'
     
-    - name: Generate Changelog
-      run: npm run changelog
-    
-    - name: Commit Changelog
+    - name: Update version and changelog
       run: |
+        npm run changelog
         git add CHANGELOG.md
-        git commit -m "docs: update changelog [skip ci]"
-    
-    - name: Bump version
-      run: 'npm version ${{ github.event.inputs.version_type }} -m "chore: bump version to %s [skip ci]"'
+        npm version ${{ github.event.inputs.version_type }} -m "chore: release %s [skip ci]"
     
     - name: Push changes
       run: |
