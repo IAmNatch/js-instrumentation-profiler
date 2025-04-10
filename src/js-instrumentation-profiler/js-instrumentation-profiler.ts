@@ -16,7 +16,8 @@ import type {
   ClassDeclaration,
   AssignmentExpression,
   Collection,
-  Statement,
+  ExpressionStatement,
+  VariableDeclaration,
 } from "jscodeshift";
 
 export default function transformer(
@@ -31,146 +32,123 @@ export default function transformer(
   // First, collect all function names
   const functionNames: string[] = [];
 
-  // Helper function to create timing code for the beginning of a function
-  function createStartTimingCode(
+  // Helper function to create timing code based on type
+  function createTimingCode(
     j: JSCodeshift,
-    functionName: string
-  ): Statement[] {
-    return [
-      j.expressionStatement(j.literal("/* --instrumentation-- */")),
-      // Increment call counter
-      j.expressionStatement(
-        j.assignmentExpression(
-          "+=",
-          j.memberExpression(
-            j.callExpression(
+    type: "start" | "end" | "beforeCall" | "afterCall",
+    functionName?: string
+  ): (ExpressionStatement | VariableDeclaration)[] {
+    const createInstrumentationComment = (): ExpressionStatement =>
+      j.expressionStatement(j.literal("/* --instrumentation-- */"));
+    const createEndInstrumentationComment = (): ExpressionStatement =>
+      j.expressionStatement(j.literal("/* --end-instrumentation-- */"));
+    const createPerformanceNow = (): CallExpression =>
+      j.callExpression(
+        j.memberExpression(j.identifier("performance"), j.identifier("now")),
+        []
+      );
+    const createTimingsMapGet = (name: string): CallExpression =>
+      j.callExpression(
+        j.memberExpression(j.identifier("timingsMap"), j.identifier("get")),
+        [j.stringLiteral(name)]
+      );
+
+    switch (type) {
+      case "start":
+        if (!functionName)
+          throw new Error("Function name is required for start timing code");
+        return [
+          createInstrumentationComment(),
+          // Increment call counter
+          j.expressionStatement(
+            j.assignmentExpression(
+              "+=",
               j.memberExpression(
-                j.identifier("timingsMap"),
-                j.identifier("get")
+                createTimingsMapGet(functionName),
+                j.identifier("calls")
               ),
-              [j.stringLiteral(functionName)]
-            ),
-            j.identifier("calls")
+              j.numericLiteral(1)
+            )
           ),
-          j.numericLiteral(1)
-        )
-      ),
-      // Start timing
-      j.variableDeclaration("let", [
-        j.variableDeclarator(
-          j.identifier("startTime"),
-          j.callExpression(
-            j.memberExpression(
-              j.identifier("performance"),
-              j.identifier("now")
+          // Start timing
+          j.variableDeclaration("let", [
+            j.variableDeclarator(
+              j.identifier("startTime"),
+              createPerformanceNow()
             ),
-            []
-          )
-        ),
-      ]),
-      // Initialize local duration
-      j.variableDeclaration("let", [
-        j.variableDeclarator(
-          j.identifier("localDuration"),
-          j.numericLiteral(0)
-        ),
-      ]),
-      j.expressionStatement(j.literal("/* --end-instrumentation-- */")),
-    ];
-  }
-
-  // Helper function to create timing code for the end of a function
-  function createEndTimingCode(
-    j: JSCodeshift,
-    functionName: string
-  ): Statement[] {
-    return [
-      j.expressionStatement(j.literal("/* --instrumentation-- */")),
-      // Calculate local duration
-      j.expressionStatement(
-        j.assignmentExpression(
-          "+=",
-          j.identifier("localDuration"),
-          j.binaryExpression(
-            "-",
-            j.callExpression(
-              j.memberExpression(
-                j.identifier("performance"),
-                j.identifier("now")
-              ),
-              []
+          ]),
+          // Initialize local duration
+          j.variableDeclaration("let", [
+            j.variableDeclarator(
+              j.identifier("localDuration"),
+              j.numericLiteral(0)
             ),
-            j.identifier("startTime")
-          )
-        )
-      ),
-      // Add to total duration
-      j.expressionStatement(
-        j.assignmentExpression(
-          "+=",
-          j.memberExpression(
-            j.callExpression(
-              j.memberExpression(
-                j.identifier("timingsMap"),
-                j.identifier("get")
-              ),
-              [j.stringLiteral(functionName)]
-            ),
-            j.identifier("totalDuration")
+          ]),
+          createEndInstrumentationComment(),
+        ];
+      case "end":
+        if (!functionName)
+          throw new Error("Function name is required for end timing code");
+        return [
+          createInstrumentationComment(),
+          // Calculate local duration
+          j.expressionStatement(
+            j.assignmentExpression(
+              "+=",
+              j.identifier("localDuration"),
+              j.binaryExpression(
+                "-",
+                createPerformanceNow(),
+                j.identifier("startTime")
+              )
+            )
           ),
-          j.identifier("localDuration")
-        )
-      ),
-      j.expressionStatement(j.literal("/* --end-instrumentation-- */")),
-    ];
-  }
-
-  // Helper function to create timing code for before a function call
-  function createBeforeCallTimingCode(j: JSCodeshift): Statement[] {
-    return [
-      j.expressionStatement(j.literal("/* --instrumentation-- */")),
-      // Calculate local duration
-      j.expressionStatement(
-        j.assignmentExpression(
-          "+=",
-          j.identifier("localDuration"),
-          j.binaryExpression(
-            "-",
-            j.callExpression(
+          // Add to total duration
+          j.expressionStatement(
+            j.assignmentExpression(
+              "+=",
               j.memberExpression(
-                j.identifier("performance"),
-                j.identifier("now")
+                createTimingsMapGet(functionName),
+                j.identifier("totalDuration")
               ),
-              []
-            ),
-            j.identifier("startTime")
-          )
-        )
-      ),
-      j.expressionStatement(j.literal("/* --end-instrumentation-- */")),
-    ];
-  }
-
-  // Helper function to create timing code for after a function call
-  function createAfterCallTimingCode(j: JSCodeshift): Statement[] {
-    return [
-      j.expressionStatement(j.literal("/* --instrumentation-- */")),
-      // Reset start time
-      j.expressionStatement(
-        j.assignmentExpression(
-          "=",
-          j.identifier("startTime"),
-          j.callExpression(
-            j.memberExpression(
-              j.identifier("performance"),
-              j.identifier("now")
-            ),
-            []
-          )
-        )
-      ),
-      j.expressionStatement(j.literal("/* --end-instrumentation-- */")),
-    ];
+              j.identifier("localDuration")
+            )
+          ),
+          createEndInstrumentationComment(),
+        ];
+      case "beforeCall":
+        return [
+          createInstrumentationComment(),
+          // Calculate local duration
+          j.expressionStatement(
+            j.assignmentExpression(
+              "+=",
+              j.identifier("localDuration"),
+              j.binaryExpression(
+                "-",
+                createPerformanceNow(),
+                j.identifier("startTime")
+              )
+            )
+          ),
+          createEndInstrumentationComment(),
+        ];
+      case "afterCall":
+        return [
+          createInstrumentationComment(),
+          // Reset start time
+          j.expressionStatement(
+            j.assignmentExpression(
+              "=",
+              j.identifier("startTime"),
+              createPerformanceNow()
+            )
+          ),
+          createEndInstrumentationComment(),
+        ];
+      default:
+        throw new Error(`Unknown timing code type: ${type}`);
+    }
   }
 
   // Helper function to collect function names from various declarations
@@ -518,11 +496,13 @@ export default function transformer(
       extractFunctionCallInIfCondition(path, j);
 
       // Create the timing code
-      const timingCode = createStartTimingCode(j, functionName);
-      const endTimingCode = createEndTimingCode(j, functionName);
+      const timingCode = createTimingCode(j, "start", functionName);
+      const endTimingCode = createTimingCode(j, "end", functionName);
 
       // Insert timing code at the beginning of the function body
-      path.node.body.body.unshift(...timingCode);
+      path.node.body.body.unshift(
+        ...(timingCode as (ExpressionStatement | VariableDeclaration)[])
+      );
 
       // Find all inner function calls
       const innerFunctionCalls = j(path)
@@ -566,8 +546,8 @@ export default function transformer(
           // Insert timing code before the call
           if (callIndex !== -1) {
             // Create timing code for before the call
-            const beforeCallCode = createBeforeCallTimingCode(j);
-            const afterCallCode = createAfterCallTimingCode(j);
+            const beforeCallCode = createTimingCode(j, "beforeCall");
+            const afterCallCode = createTimingCode(j, "afterCall");
 
             // Insert the timing code and move the call
             const callNode = currentPath.node;
@@ -647,12 +627,18 @@ export default function transformer(
         const returnIndex = parentBody.indexOf(returnNode);
 
         // Insert the timing code before the return statement
-        parentBody.splice(returnIndex, 0, ...endTimingCode);
+        parentBody.splice(
+          returnIndex,
+          0,
+          ...(endTimingCode as (ExpressionStatement | VariableDeclaration)[])
+        );
       });
 
       // If there are no return statements, append the end timing code at the end
       if (returnPaths.length === 0) {
-        path.node.body.body.push(...endTimingCode);
+        path.node.body.body.push(
+          ...(endTimingCode as (ExpressionStatement | VariableDeclaration)[])
+        );
       }
     }
   });
@@ -673,13 +659,15 @@ export default function transformer(
         extractFunctionCallInIfCondition(path, j);
 
         // Create the timing code
-        const timingCode = createStartTimingCode(j, functionName);
-        const endTimingCode = createEndTimingCode(j, functionName);
+        const timingCode = createTimingCode(j, "start", functionName);
+        const endTimingCode = createTimingCode(j, "end", functionName);
 
         // Check if the arrow function has a block body
         if (j.BlockStatement.check(arrowFunction.body)) {
           // Insert timing code at the beginning of the function body
-          arrowFunction.body.body.unshift(...timingCode);
+          arrowFunction.body.body.unshift(
+            ...(timingCode as (ExpressionStatement | VariableDeclaration)[])
+          );
 
           // Find all inner function calls
           const innerFunctionCalls = j(path)
@@ -723,8 +711,8 @@ export default function transformer(
               // Insert timing code before the call
               if (callIndex !== -1) {
                 // Create timing code for before the call
-                const beforeCallCode = createBeforeCallTimingCode(j);
-                const afterCallCode = createAfterCallTimingCode(j);
+                const beforeCallCode = createTimingCode(j, "beforeCall");
+                const afterCallCode = createTimingCode(j, "afterCall");
 
                 // Insert the timing code and move the call
                 const callNode = currentPath.node;
@@ -808,12 +796,24 @@ export default function transformer(
             const returnIndex = parentBody.indexOf(returnNode);
 
             // Insert the timing code before the return statement
-            parentBody.splice(returnIndex, 0, ...endTimingCode);
+            parentBody.splice(
+              returnIndex,
+              0,
+              ...(endTimingCode as (
+                | ExpressionStatement
+                | VariableDeclaration
+              )[])
+            );
           });
 
           // If there are no return statements, append the end timing code at the end
           if (returnPaths.length === 0) {
-            arrowFunction.body.body.push(...endTimingCode);
+            arrowFunction.body.body.push(
+              ...(endTimingCode as (
+                | ExpressionStatement
+                | VariableDeclaration
+              )[])
+            );
           }
         } else {
           // For arrow functions with expression bodies, we need to wrap the expression in a block
@@ -857,8 +857,8 @@ export default function transformer(
       const functionExpression = node.right;
 
       // Create the timing code
-      const timingCode = createStartTimingCode(j, methodName);
-      const endTimingCode = createEndTimingCode(j, methodName);
+      const timingCode = createTimingCode(j, "start", methodName);
+      const endTimingCode = createTimingCode(j, "end", methodName);
 
       // Insert timing code at the beginning of the function body
       functionExpression.body.body.unshift(...timingCode);
@@ -905,8 +905,8 @@ export default function transformer(
           // Insert timing code before the call
           if (callIndex !== -1) {
             // Create timing code for before the call
-            const beforeCallCode = createBeforeCallTimingCode(j);
-            const afterCallCode = createAfterCallTimingCode(j);
+            const beforeCallCode = createTimingCode(j, "beforeCall");
+            const afterCallCode = createTimingCode(j, "afterCall");
 
             // Insert the timing code and move the call
             const callNode = currentPath.node;
@@ -986,12 +986,18 @@ export default function transformer(
         const returnIndex = parentBody.indexOf(returnNode);
 
         // Insert the timing code before the return statement
-        parentBody.splice(returnIndex, 0, ...endTimingCode);
+        parentBody.splice(
+          returnIndex,
+          0,
+          ...(endTimingCode as (ExpressionStatement | VariableDeclaration)[])
+        );
       });
 
       // If there are no return statements, append the end timing code at the end
       if (returnPaths.length === 0) {
-        functionExpression.body.body.push(...endTimingCode);
+        functionExpression.body.body.push(
+          ...(endTimingCode as (ExpressionStatement | VariableDeclaration)[])
+        );
       }
     }
   });
@@ -1013,8 +1019,8 @@ export default function transformer(
         }
 
         // Create the timing code
-        const timingCode = createStartTimingCode(j, methodName);
-        const endTimingCode = createEndTimingCode(j, methodName);
+        const timingCode = createTimingCode(j, "start", methodName);
+        const endTimingCode = createTimingCode(j, "end", methodName);
 
         // Insert timing code at the beginning of the method body
         methodPath.node.body.body.unshift(...timingCode);
@@ -1061,8 +1067,8 @@ export default function transformer(
             // Insert timing code before the call
             if (callIndex !== -1) {
               // Create timing code for before the call
-              const beforeCallCode = createBeforeCallTimingCode(j);
-              const afterCallCode = createAfterCallTimingCode(j);
+              const beforeCallCode = createTimingCode(j, "beforeCall");
+              const afterCallCode = createTimingCode(j, "afterCall");
 
               // Insert the timing code and move the call
               const callNode = currentPath.node;
@@ -1142,12 +1148,18 @@ export default function transformer(
           const returnIndex = parentBody.indexOf(returnNode);
 
           // Insert the timing code before the return statement
-          parentBody.splice(returnIndex, 0, ...endTimingCode);
+          parentBody.splice(
+            returnIndex,
+            0,
+            ...(endTimingCode as (ExpressionStatement | VariableDeclaration)[])
+          );
         });
 
         // If there are no return statements, append the end timing code at the end
         if (returnPaths.length === 0) {
-          methodPath.node.body.body.push(...endTimingCode);
+          methodPath.node.body.body.push(
+            ...(endTimingCode as (ExpressionStatement | VariableDeclaration)[])
+          );
         }
       });
   });
