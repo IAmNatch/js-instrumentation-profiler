@@ -1,6 +1,7 @@
 import eslint from '@eslint/js';
 import tseslint from '@typescript-eslint/eslint-plugin';
 import tseslintParser from '@typescript-eslint/parser';
+import globals from 'globals';
 
 export default [
   eslint.configs.recommended,
@@ -12,9 +13,9 @@ export default [
         ecmaVersion: 'latest',
         sourceType: 'module',
       },
-    },
-    env: {
-      node: true,
+      globals: {
+        ...globals.node,
+      },
     },
     plugins: {
       '@typescript-eslint': tseslint,
@@ -46,6 +47,8 @@ export default [
     ignores: [
       'node_modules/**',
       'dist/**',
+      'example-files/**',
+      'example-output/**',
       'coverage/**',
       '*.js',
       '!*.config.js',
