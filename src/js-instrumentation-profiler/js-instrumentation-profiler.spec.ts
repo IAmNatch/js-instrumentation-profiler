@@ -253,6 +253,17 @@ const Foo = () => {
 
       expect(result).toEqual(expected);
     });
+
+    it("should not extract non-library function calls in if statement conditions", () => {
+      const source = readFixture("non-library-function-in-if.js", __filename);
+      const expected = readFixture(
+        "non-library-function-in-if.expected.js",
+        __filename
+      );
+      const result = transform({ source });
+
+      expect(result).toEqual(expected);
+    });
   });
 
   describe("instrumentation quality", () => {
