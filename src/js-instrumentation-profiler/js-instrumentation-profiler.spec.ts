@@ -174,13 +174,13 @@ const Foo = () => {
 
     it("should handle return statements directly inside if statement consequents", () => {
       const source = readFixture("return-in-if-consequent.js", __filename);
+      const expected = readFixture(
+        "return-in-if-consequent.expected.js",
+        __filename
+      );
       const result = transform({ source });
 
-      // The transformation should complete without errors
-      expect(result).toContain("function testFunction()");
-      expect(result).toContain("if (condition)");
-      expect(result).toContain("return true");
-      expect(result).toContain("return false");
+      expect(result).toEqual(expected);
     });
 
     it("should detect nested functions and add them to timingsMap", () => {
